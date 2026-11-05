@@ -28,7 +28,7 @@ export const StemMixer: React.FC<StemMixerProps> = ({
   onToggleSolo,
   stemEnergies,
 }) => {
-  const totalE = Math.max(1e-9, stemEnergies.master);
+  const totalE = Math.max(1e-9, stemEnergies.drums + stemEnergies.bass + stemEnergies.vocals + stemEnergies.other);
 
   return (
     <section className="bg-[#181818] rounded-lg p-5">

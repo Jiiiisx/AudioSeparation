@@ -17,6 +17,7 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
+import { resolveSpotifyTrack } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
 import { BeatDetectorPanel } from "./components/BeatDetectorPanel";
@@ -56,6 +57,11 @@ export function App() {
   const [isMasterMuted, setIsMasterMuted] = useState<boolean>(false);
   const [, setTrackConfigsVersion] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [showSpotifyModal, setShowSpotifyModal] = useState<boolean>(false);
+  const [spotifyUrl, setSpotifyUrl] = useState<string>("");
+  const [spotifyStatus, setSpotifyStatus] = useState<string>("");
+
+  const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
   useEffect(() => {
     const engine = new MultiTrackAudioEngine();
@@ -261,6 +267,27 @@ export function App() {
     }
   };
 
+  const handleResolveSpotify = async () => {
+    const url = spotifyUrl.trim();
+    if (!url) return;
+    setSpotifyStatus("Diterima backend, memulai pipeline...");
+    try {
+      const track = await resolveSpotifyTrack(url, (msg) => setSpotifyStatus(msg));
+      setSpotifyStatus("Selesai.");
+      setCurrentTrack(track);
+      if (engineRef.current) {
+        engineRef.current.setTrack(track);
+        setIsPlaying(false);
+        setCurrentTime(0);
+      }
+      setShowSpotifyModal(false);
+      setActiveView("studio");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memproses link Spotify";
+      setSpotifyStatus(`Error: ${msg}`);
+    }
+  };
+
   const trackConfigs = engineRef.current ? engineRef.current.getTrackConfigs() : new Map();
   const duration = currentTrack?.duration || 0;
 
@@ -274,6 +301,8 @@ export function App() {
           onSelectPreset={handleSelectPreset}
           onFileUpload={handleFileUpload}
           isProcessing={isProcessing}
+          onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); }}
+          hasSpotifyJob={hasSpotifyJob}
         />
 
         <main className="relative flex-1 overflow-y-auto rounded-lg bg-gradient-to-b from-[#1f1f1f] via-[#121212] to-[#121212]">
@@ -423,6 +452,46 @@ export function App() {
           )}
         </main>
       </div>
+
+      {/* Modal: Tautkan Spotify */}
+      {showSpotifyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowSpotifyModal(false)}>
+          <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
+            <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
+              Tempel link lagu dari aplikasi Spotify (Share → Copy Song Link).
+              Server akan meminjam audio via resolver lalu memisahkan 4 stem dengan AI.
+              Berlangsung 1–5 menit tergantung durasi lagu.
+            </p>
+            <input
+              type="text"
+              value={spotifyUrl}
+              onChange={(e) => setSpotifyUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleResolveSpotify(); }}
+              placeholder="https://open.spotify.com/track/..."
+              className="mt-4 w-full rounded-md bg-[#282828] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1ed760]"
+            />
+            {spotifyStatus && (
+              <p className="mt-3 text-xs text-[#1ed760]">{spotifyStatus}</p>
+            )}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowSpotifyModal(false)}
+                className="px-4 py-2 rounded-full bg-transparent text-sm font-bold text-[#a7a7a7] hover:text-white cursor-pointer"
+              >
+                Tutup
+              </button>
+              <button
+                onClick={handleResolveSpotify}
+                disabled={!spotifyUrl.trim() || spotifyStatus.includes("Error") === false && spotifyStatus !== ""}
+                className="px-5 py-2 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-105 transition cursor-pointer disabled:opacity-40 disabled:hover:scale-100"
+              >
+                Proses Lagu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PlayerBar
         isPlaying={isPlaying}

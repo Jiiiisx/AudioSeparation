@@ -1,156 +1,149 @@
+"""
+Riemann Audio Lab API
+Job-based Spotify resolver: YouTube search via yt-dlp → Demucs (htdemucs) → cached stems.
+Stems disimpan sebagai MP3 192kbps agar ringan di-fetch browser (±6 MB / stem).
+"""
 import os
-import re
-import json
+import shutil
 import hashlib
+import threading
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
 import requests
+import yt_dlp
 
-app = FastAPI(
-    title="Riemann Audio Lab API",
-    description="Spotify resolver & AI Stem Separation backend service",
-    version="1.0.0"
-)
+BASE_DIR = Path(__file__).resolve().parent
+JOBS_DIR = Path(os.environ.get("JOBS_DIR", BASE_DIR / "cache" / "jobs"))
+JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
-# CORS configuration for Vite frontend
+app = FastAPI(title="Riemann Audio Lab API", version="1.1.0")
+
+allowed = [o for o in os.environ.get("CLIENT_ORIGINS", "*").split(",") if o]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-BASE_DIR = Path(__file__).resolve().parent
-CACHE_DIR = BASE_DIR / "cache"
-DOWNLOADS_DIR = CACHE_DIR / "downloads"
-STEMS_DIR = CACHE_DIR / "stems"
+app.mount("/static", StaticFiles(directory=str(JOBS_DIR)), name="static")
 
-DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
-STEMS_DIR.mkdir(parents=True, exist_ok=True)
-
-# Mount static audio files
-app.mount("/static", StaticFiles(directory=str(CACHE_DIR)), name="static")
 
 class TrackRequest(BaseModel):
     url: str
 
-class TrackResponse(BaseModel):
-    success: bool = True
-    track_id: str
-    title: str
-    artist: str
-    stems: dict
 
-def extract_spotify_meta(url: str) -> tuple[str, str]:
-    """Mengambil metadata artis & judul dari Spotify via oEmbed resmi tanpa butuh API key"""
+JOBS: dict[str, dict[str, Any]] = {}
+JOBS_LOCK = threading.Lock()
+
+
+def set_job(job_id: str, **fields: Any) -> None:
+    with JOBS_LOCK:
+        JOBS.setdefault(job_id, {})
+        JOBS[job_id].update(fields)
+
+
+def resolve_metadata(url: str) -> tuple[str, str]:
+    """Metadata via Spotify oEmbed resmi (tanpa API key), fallback saat bukan link Spotify."""
     try:
-        oembed_url = f"https://open.spotify.com/oembed?url={url}"
-        res = requests.get(oembed_url, timeout=5)
-        if res.status_code == 200:
-            data = res.json()
-            title = data.get("title", "")
-            # Judul oembed biasanya: "Song Title by Artist" atau sejenisnya
-            if " by " in title:
-                parts = title.split(" by ")
-                return parts[0].strip(), parts[1].strip()
-            return title.strip(), "Spotify Track"
-    except Exception as e:
-        print(f"oEmbed fetch error: {e}")
+        if "open.spotify.com" in url or "spotify:" in url:
+            res = requests.get("https://open.spotify.com/oembed", params={"url": url}, timeout=8)
+            if res.ok:
+                data = res.json()
+                title = data.get("title", "")
+                if " by " in title:
+                    a, b = title.split(" by ", 1)
+                    return a.strip(), b.strip()
+                return title.strip(), "Spotify"
+    except Exception:
+        pass
+    return url[-40:], "Resolver"
 
-    # Fallback jika bukan Spotify atau oembed gagal: gunakan URL slug
-    slug = url.split("/")[-1].split("?")[0]
-    return f"Track {slug[:10]}", "Online Audio"
+
+def run_pipeline(job_id: str, source_url: str) -> None:
+    workdir = JOBS_DIR / job_id
+    workdir.mkdir(parents=True, exist_ok=True)
+    try:
+        set_job(job_id, status="downloading", message="Meminjam audio via resolver...")
+
+        title, artist = resolve_metadata(source_url)
+        query = f"{artist} - {title}" if "open.spotify.com" in source_url else source_url
+
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": str(workdir / "source.%(ext)s"),
+            "postprocessors": [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }],
+            "noplaylist": True,
+            "default_search": "ytsearch1",
+            "quiet": True,
+            "no_warnings": True,
+            "retries": 2,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([query])
+
+        audio_path = workdir / "source.mp3"
+        if not audio_path.exists():
+            raise RuntimeError("File audio hasil resolver tidak ditemukan.")
+
+        set_job(job_id, status="separating", message="AI memisahkan 4 stem (0,5–3 menit)...")
+        subprocess.run(
+            ["demucs", "--mp3", "192", "--two-stems", "none", "-n", "htdemucs", "-o", str(workdir), str(audio_path)],
+            check=True,
+            timeout=900,
+            capture_output=True,
+        )
+
+        model_dir = workdir / "htdemucs" / audio_path.stem
+        out = {}
+        for stem in ("drums", "bass", "vocals", "other"):
+            src = model_dir / f"{stem}.mp3"
+            if src.exists():
+                out[stem] = f"/static/{job_id}/{stem}.mp3"
+                shutil.copy(src, workdir / f"{stem}.mp3")
+
+        if len(out) < 4:
+            raise RuntimeError("Demucs tidak menghasilkan 4 stem lengkap.")
+
+        set_job(job_id, status="done", title=title, artist=artist, stems=out)
+
+    except subprocess.CalledProcessError as e:
+        err = e.stderr.decode("utf-8", errors="ignore")[-400:] if e.stderr else str(e)
+        set_job(job_id, status="error", message=f"Demucs gagal: {err}")
+    except Exception as e:
+        set_job(job_id, status="error", message=str(e))
+
 
 @app.get("/api/health")
-def health_check():
-    return {
-        "status": "online",
-        "service": "Riemann Audio Separation Backend",
-        "cache_ready": True
-    }
+def health():
+    return {"status": "online", "jobs_active": sum(1 for j in JOBS.values() if j.get("status") not in ("done", "error"))}
+
 
 @app.post("/api/process-track")
 def process_track(req: TrackRequest):
     url = req.url.strip()
     if not url:
-        raise HTTPException(status_code=400, detail="URL tidak boleh kosong.")
+        raise HTTPException(400, "URL tidak boleh kosong.")
+    job_id = hashlib.md5(url.encode()).hexdigest()[:12] + "-" + os.urandom(2).hex()
+    threading.Thread(target=run_pipeline, args=(job_id, url), daemon=True).start()
+    set_job(job_id, status="queued", message="Diterima, memulai pipeline...")
+    return {"job_id": job_id}
 
-    # 1. Resolusi Metadata
-    title, artist = extract_spotify_meta(url)
-    search_query = f"{artist} - {title}".strip()
-    track_hash = hashlib.md5(search_query.encode("utf-8")).hexdigest()[:12]
 
-    # Cek apakah stem sudah ada di cache
-    target_stem_dir = STEMS_DIR / "htdemucs" / track_hash
-    if target_stem_dir.exists() and (target_stem_dir / "drums.wav").exists():
-        return {
-            "success": True,
-            "track_id": track_hash,
-            "title": title,
-            "artist": artist,
-            "cached": True,
-            "stems": {
-                "drums": f"/static/stems/htdemucs/{track_hash}/drums.wav",
-                "bass": f"/static/stems/htdemucs/{track_hash}/bass.wav",
-                "vocals": f"/static/stems/htdemucs/{track_hash}/vocals.wav",
-                "other": f"/static/stems/htdemucs/{track_hash}/other.wav",
-            }
-        }
-
-    # 2. Unduh audio via yt-dlp jika belum ada
-    audio_path = DOWNLOADS_DIR / f"{track_hash}.mp3"
-    if not audio_path.exists():
-        try:
-            cmd_dl = [
-                "yt-dlp",
-                "-x",
-                "--audio-format", "mp3",
-                "--audio-quality", "0",
-                "-o", str(DOWNLOADS_DIR / f"{track_hash}.%(ext)s"),
-                f"ytsearch1:{search_query} audio"
-            ]
-            subprocess.run(cmd_dl, check=True, timeout=60, capture_output=True)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Gagal mengunduh audio trek via yt-dlp: {str(e)}"
-            )
-
-    # 3. Jalankan Demucs AI Stem Separation
-    try:
-        cmd_demucs = [
-            "python", "-m", "demucs",
-            "-n", "htdemucs",
-            "-o", str(STEMS_DIR),
-            str(audio_path)
-        ]
-        subprocess.run(cmd_demucs, check=True, timeout=300, capture_output=True)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Eksekusi Demucs stem separation gagal: {str(e)}. Gunakan Client DSP / Preset bawaan."
-        )
-
-    return {
-        "success": True,
-        "track_id": track_hash,
-        "title": title,
-        "artist": artist,
-        "cached": False,
-        "stems": {
-            "drums": f"/static/stems/htdemucs/{track_hash}/drums.wav",
-            "bass": f"/static/stems/htdemucs/{track_hash}/bass.wav",
-            "vocals": f"/static/stems/htdemucs/{track_hash}/vocals.wav",
-            "other": f"/static/stems/htdemucs/{track_hash}/other.wav",
-        }
-    }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+@app.get("/api/job/{job_id}")
+def job_status(job_id: str):
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job tidak ditemukan.")
+    return {**job, "job_id": job_id}

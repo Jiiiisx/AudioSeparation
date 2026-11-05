@@ -1,5 +1,5 @@
 fastapi>=0.110.0
-uvicorn>=0.28.0
+uvicorn[standard]>=0.28.0
 requests>=2.31.0
-yt-dlp>=2024.3.10
-demucs>=4.0.1
+yt-dlp>=2024.8.6
+demucs[mp3]>=4.0.1

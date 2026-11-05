@@ -6,6 +6,8 @@ import {
   IconMusic,
   IconUpload,
   IconLoader2,
+  IconBrandSpotify,
+  IconLink,
 } from "@tabler/icons-react";
 import type { TrackStemData } from "../lib/proceduralSongs";
 
@@ -16,6 +18,8 @@ interface SidebarProps {
   onSelectPreset: (genre: "edm" | "pop" | "rock") => void;
   onFileUpload: (file: File) => void;
   isProcessing: boolean;
+  onOpenSpotify: () => void;
+  hasSpotifyJob: boolean;
 }
 
 const PRESETS: { genre: "edm" | "pop" | "rock"; name: string; artist: string; gradient: string; duration: string }[] = [
@@ -31,6 +35,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectPreset,
   onFileUpload,
   isProcessing,
+  onOpenSpotify,
+  hasSpotifyJob,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -123,6 +129,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="text-xs text-[#a7a7a7] truncate">MP3 / WAV lokal</div>
             </div>
+          </button>
+
+          <button
+            onClick={onOpenSpotify}
+            className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-[#1a1a1a] transition text-left cursor-pointer"
+          >
+            <div className="size-11 rounded bg-[#333] flex items-center justify-center shrink-0">
+              <IconBrandSpotify className={`size-5 ${hasSpotifyJob ? "text-[#1ed760] animate-pulse" : "text-[#1db954]"}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-white truncate">
+                {hasSpotifyJob ? "Memproses lagu..." : "Tautkan Spotify"}
+              </div>
+              <div className="text-xs text-[#a7a7a7] truncate">Tempel link lagu Spotify</div>
+            </div>
+            <IconLink className="size-4 text-[#a7a7a7]" />
           </button>
         </div>
       </div>

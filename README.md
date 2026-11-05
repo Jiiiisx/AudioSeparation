@@ -104,3 +104,23 @@ Backend berjalan di `http://localhost:8000`.
 
 ---
 Dikembangkan oleh: **Kelompok 1 Kalkulus — Informatika UPN "Veteran" Jakarta**
+
+## Deploy Backend (Render / Railway, graris 750 jam)
+
+1. Buat repo GitHub `AudioSeparation` lalu push semua file ini.
+2. Render: **New → Web Service → Deploy from GitHub**, pilih repo, environment **Docker**.
+   - Root Directory: `backend`
+   - Instance Type: Free (hati-hati: RAM 512 MB — Demucs bisa OOM; kalau gagal naikkan ke Starter).
+   - Environment Variable: `CLIENT_ORIGINS = <url-vercel-kamu>,http://localhost:5173`
+3. Copy URL backend, misal `https://riemann-api.onrender.com`.
+4. Verify: `curl https://<backend>/api/health` → `{"status":"online",...}`
+
+## Deploy Frontend (Vercel)
+
+1. Vercel: Import repo GitHub, root `frontend`, framework Vite.
+2. Environment Variable: `VITE_API_BASE_URL = https://<backend-url-di-render>`
+3. Deploy, teman akses via URL Vercel dari HP/laptop mana pun.
+
+### Catatan free tier
+- Backend tidur setelah 15 menit idle; request pertama lambat 30-60 detik (cold start).
+- yt-dlp dari IP cloud kadang kena block YouTube. Kalau sering gagal, fallback: tombol Unggah File tetap bekerja 100%.
