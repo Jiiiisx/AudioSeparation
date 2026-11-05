@@ -16,7 +16,8 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist } from "./lib/songApi";
+import type { BatchTrack } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
@@ -61,6 +62,7 @@ export function App() {
   const [spotifyStatus, setSpotifyStatus] = useState<string>("");
   const [library, setLibrary] = useState<LibrarySong[]>([]);
   const [loadingLibrarySongId, setLoadingLibrarySongId] = useState<number | null>(null);
+  const [batchTracks, setBatchTracks] = useState<BatchTrack[] | null>(null);
 
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
@@ -284,6 +286,24 @@ export function App() {
   const handleResolveSpotify = async () => {
     const url = spotifyUrl.trim();
     if (!url) return;
+    if (isPlaylistUrl(url)) {
+      setSpotifyStatus("Membaca playlist...");
+      setBatchTracks([]);
+      try {
+        const batch = await resolvePlaylist(url, (tracks, done, total) => {
+          setBatchTracks(tracks);
+          setSpotifyStatus(`Playlist: ${done}/${total} lagu selesai (gagal otomatis dilewati).`);
+          if (done > 0) fetchLibrary().then(setLibrary).catch(() => {});
+        });
+        setSpotifyStatus(`Selesai: ${batch.done}/${batch.total} lagu berhasil. Pustaka diperbarui.`);
+        fetchLibrary().then(setLibrary).catch(() => {});
+      } catch (err: unknown) {
+        setSpotifyStatus(err instanceof Error ? `Error: ${err.message}` : "Error memproses playlist.");
+      } finally {
+        setBatchTracks(null);
+      }
+      return;
+    }
     setSpotifyStatus("Diterima backend, memulai pipeline...");
     try {
       const track = await resolveSpotifyTrack(url, (msg) => setSpotifyStatus(msg));
@@ -463,7 +483,7 @@ export function App() {
           <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
-              Tempel link lagu dari aplikasi Spotify (Share → Copy Song Link).
+              Tempel link lagu atau playlist dari Spotify (Share → Copy Link). Playlist diproses berurutan, yang selesai langsung masuk Pustaka.
               Server akan meminjam audio via resolver lalu memisahkan 6 stem dengan AI.
               Berlangsung 1–5 menit tergantung durasi lagu.
             </p>
@@ -472,11 +492,24 @@ export function App() {
               value={spotifyUrl}
               onChange={(e) => setSpotifyUrl(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleResolveSpotify(); }}
-              placeholder="https://open.spotify.com/track/..."
+              placeholder="https://open.spotify.com/track/... atau /playlist/..."
               className="mt-4 w-full rounded-md bg-[#282828] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1ed760]"
             />
             {spotifyStatus && (
               <p className="mt-3 text-xs text-[#1ed760]">{spotifyStatus}</p>
+            )}
+            {batchTracks && (
+              <div className="mt-3 max-h-48 overflow-y-auto rounded-md bg-[#181818] border border-white/10">
+                {batchTracks.map((t) => (
+                  <div key={t.job_id} className="flex items-center gap-2 px-3 py-1.5 text-xs">
+                    <span className={t.status === "error" ? "text-[#f04a4a]" : t.status === "done" ? "text-[#1ed760]" : "text-[#a7a7a7]"}>
+                      {t.status === "done" ? "[selesai]" : t.status === "error" ? "[dilewati]" : "[proses]"}
+                    </span>
+                    <span className="truncate text-white/90">{t.title}</span>
+                    <span className="ml-auto shrink-0 text-[#535353]">{t.artist}</span>
+                  </div>
+                ))}
+              </div>
             )}
             <div className="mt-5 flex justify-end gap-3">
               <button

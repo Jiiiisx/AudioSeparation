@@ -148,3 +148,51 @@ export async function loadLibrarySong(
 ): Promise<TrackStemData> {
   return decodeStemsToTrack(song.stems, song.title, song.artist, onStatus);
 }
+
+/* ---------- Playlist (batch antrian di backend) ---------- */
+
+export interface BatchTrack {
+  job_id: string;
+  title: string;
+  artist: string;
+  status: "queued" | "downloading" | "separating" | "done" | "error";
+  message?: string;
+}
+
+interface BatchResponse {
+  batch_id: string;
+  status: "running" | "done";
+  done: number;
+  total: number;
+  tracks: BatchTrack[];
+}
+
+export const isPlaylistUrl = (url: string): boolean =>
+  /open\.spotify\.com\/(playlist|album)\//.test(url);
+
+/** Kirim playlist ke backend, polling batch sampai semua lagu selesai/gagal. */
+export async function resolvePlaylist(
+  url: string,
+  onProgress?: (t: BatchTrack[], done: number, total: number) => void,
+  pollMs = 5000
+): Promise<BatchResponse> {
+  const startRes = await fetch(`${API_BASE}/api/process-playlist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (!startRes.ok) {
+    const err = (await startRes.json().catch(() => ({ detail: startRes.statusText }))) as { detail?: string };
+    throw new Error(err.detail || "Backend menolak playlist ini.");
+  }
+  const { batch_id } = (await startRes.json()) as { batch_id: string };
+
+  for (;;) {
+    await sleep(pollMs);
+    const res = await fetch(`${API_BASE}/api/batch/${batch_id}`);
+    if (!res.ok) throw new Error("Polling playlist gagal.");
+    const batch = (await res.json()) as BatchResponse;
+    onProgress?.(batch.tracks, batch.done, batch.total);
+    if (batch.status === "done") return batch;
+  }
+}
