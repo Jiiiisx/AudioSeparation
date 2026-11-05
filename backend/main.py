@@ -99,7 +99,7 @@ def run_pipeline(job_id: str, source_url: str) -> None:
 
         set_job(job_id, status="separating", message="AI memisahkan 4 stem (0,5–3 menit)...")
         subprocess.run(
-            ["demucs", "--mp3", "192", "--two-stems", "none", "-n", "htdemucs", "-o", str(workdir), str(audio_path)],
+            ["demucs", "-n", "htdemucs", "--mp3", "--mp3-bitrate", "192", "-o", str(workdir), str(audio_path)],
             check=True,
             timeout=900,
             capture_output=True,
