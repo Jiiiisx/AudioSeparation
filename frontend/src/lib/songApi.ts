@@ -170,6 +170,20 @@ interface BatchResponse {
 export const isPlaylistUrl = (url: string): boolean =>
   /open\.spotify\.com\/(playlist|album)\//.test(url);
 
+/** Status batch aktif: dipakai tombol Hentikan walau modal sudah ditutup. */
+export const batchControl: { id: string | null; cancelRequested: boolean } = {
+  id: null,
+  cancelRequested: false,
+};
+
+/** Minta backend menghentikan antrian playlist yang sedang berjalan. */
+export async function cancelBatch(batchId?: string): Promise<void> {
+  const id = batchId || batchControl.id;
+  if (!id) return;
+  batchControl.cancelRequested = true;
+  await fetch(`${API_BASE}/api/batch/${id}/cancel`, { method: "POST" }).catch(() => {});
+}
+
 /** Kirim playlist ke backend, polling batch sampai semua lagu selesai/gagal. */
 export async function resolvePlaylist(
   url: string,
@@ -186,8 +200,11 @@ export async function resolvePlaylist(
     throw new Error(err.detail || "Backend menolak playlist ini.");
   }
   const { batch_id } = (await startRes.json()) as { batch_id: string };
+  batchControl.id = batch_id;
+  batchControl.cancelRequested = false;
 
   for (;;) {
+    if (batchControl.cancelRequested) throw new Error("Dihentikan oleh pengguna.");
     await sleep(pollMs);
     const res = await fetch(`${API_BASE}/api/batch/${batch_id}`);
     if (!res.ok) throw new Error("Polling playlist gagal.");

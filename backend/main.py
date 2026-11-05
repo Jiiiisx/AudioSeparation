@@ -164,6 +164,10 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
 
 def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None, known_artist: str | None = None) -> None:
     try:
+        bid = _batch_of(job_id)
+        if bid and _batch_cancelled(bid):
+            set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
+            return
         if known_title:
             title, artist = known_title, (known_artist or "Spotify")
         else:
@@ -217,6 +221,16 @@ def _sp_embed_tracks(kind: str, list_id: str) -> list[dict]:
 MAX_PLAYLIST = 50
 MAX_WORKERS = int(os.environ.get("RIEMANN_MAX_WORKERS", "2"))
 
+# Registry eksekusi batch agar bisa dihentikan: batch_id -> {"pool": ..., "cancelled": bool}
+BATCH_RUNS: dict[str, dict] = {}
+BATCH_LOCK = threading.Lock()
+
+
+def _batch_cancelled(batch_id: str) -> bool:
+    with BATCH_LOCK:
+        r = BATCH_RUNS.get(batch_id)
+        return bool(r and r.get("cancelled"))
+
 
 @app.post("/api/process-playlist")
 def process_playlist(req: TrackRequest):
@@ -241,10 +255,18 @@ def process_playlist(req: TrackRequest):
 
     def _worker():
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS)
+        with BATCH_LOCK:
+            BATCH_RUNS[batch_id] = {"pool": pool, "cancelled": False}
         futs = [pool.submit(run_pipeline_safe, it) for it in items]
         concurrent.futures.wait(futs)
         done_n = sum(1 for it in items if JOBS.get(it["job_id"], {}).get("status") == "done")
-        set_job(batch_id, status="done", message=f"Selesai: {done_n}/{len(items)} lagu")
+        with BATCH_LOCK:
+            cancelled = BATCH_RUNS.get(batch_id, {}).get("cancelled", False)
+            BATCH_RUNS.pop(batch_id, None)
+        if cancelled:
+            set_job(batch_id, status="done", message=f"Dihentikan oleh pengguna: {done_n}/{len(items)} lagu selesai")
+        else:
+            set_job(batch_id, status="done", message=f"Selesai: {done_n}/{len(items)} lagu")
         pool.shutdown()
 
     set_job(batch_id, status="running", message=f"Memproses {len(items)} lagu", tracks=[{k: v for k, v in it.items() if k in ("job_id", "title", "artist", "status")} for it in items])
@@ -267,8 +289,7 @@ def run_pipeline_safe(item: dict) -> None:
                 if t["job_id"] == job_id:
                     j = JOBS.get(job_id, {})
                     t["status"] = j.get("status", "error")
-                    if status == "error":
-                        t["message"] = j.get("message", "gagal")
+                    t["message"] = j.get("message", "gagal")
 
 
 def _batch_of(job_id: str) -> str:
@@ -277,6 +298,31 @@ def _batch_of(job_id: str) -> str:
 
 def _active_track_count() -> int:
     return sum(1 for j in JOBS.values() if (j.get("status") or "") not in ("done", "error"))
+
+
+@app.post("/api/batch/{batch_id}/cancel")
+def cancel_batch(batch_id: str):
+    b = JOBS.get(batch_id)
+    if not b:
+        raise HTTPException(404, "Batch tidak ditemukan.")
+    with BATCH_LOCK:
+        r = BATCH_RUNS.get(batch_id)
+        if r:
+            r["cancelled"] = True
+            try:
+                r["pool"].shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+    stopped = 0
+    with JOBS_LOCK:
+        for t in b.get("tracks", []):
+            j = JOBS.get(t["job_id"], {})
+            if (j.get("status") or "") == "queued":
+                set_job(t["job_id"], status="error", message="Dibatalkan oleh pengguna.")
+                t["status"] = "error"
+                t["message"] = "Dibatalkan oleh pengguna."
+                stopped += 1
+    return {"batch_id": batch_id, "stopped": stopped}
 
 
 @app.get("/api/batch/{batch_id}")

@@ -19,7 +19,7 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl } from "./lib/songApi";
 import type { BatchTrack } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
@@ -69,6 +69,7 @@ export function App() {
   const [showMobileNav, setShowMobileNav] = useState<boolean>(false);
   const [showMixerSheet, setShowMixerSheet] = useState<boolean>(false);
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
+  const [batchRunning, setBatchRunning] = useState<boolean>(false);
 
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
@@ -299,6 +300,8 @@ export function App() {
     if (isPlaylistUrl(url)) {
       setSpotifyStatus("Membaca playlist...");
       setBatchTracks([]);
+      setBatchRunning(true);
+      batchControl.cancelRequested = false;
       try {
         const batch = await resolvePlaylist(url, (tracks, done, total) => {
           setBatchTracks(tracks);
@@ -311,6 +314,8 @@ export function App() {
         setSpotifyStatus(err instanceof Error ? `Error: ${err.message}` : "Error memproses playlist.");
       } finally {
         setBatchTracks(null);
+        setBatchRunning(false);
+        batchControl.id = null;
       }
       return;
     }
@@ -539,6 +544,14 @@ export function App() {
             {spotifyStatus && (
               <p className="mt-3 text-xs text-[#1ed760]">{spotifyStatus}</p>
             )}
+            {batchRunning && (
+              <button
+                onClick={async () => { await cancelBatch(); setSpotifyStatus("Menghentikan antrian..."); }}
+                className="mt-3 w-full rounded-md bg-[#f04a4a]/90 px-3 py-2 text-sm font-bold text-white hover:bg-[#f04a4a] cursor-pointer"
+              >
+                Hentikan pemrosesan playlist
+              </button>
+            )}
             {batchTracks && (
               <div className="mt-3 max-h-48 overflow-y-auto rounded-md bg-[#181818] border border-white/10">
                 {batchTracks.map((t) => (
@@ -568,6 +581,17 @@ export function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast global: playlist diproses sementara modal ditutup */}
+      {batchRunning && !showSpotifyModal && (
+        <div className="fixed top-3 right-3 md:right-4 z-30 flex items-center gap-3 rounded-full bg-[#181818] border border-white/10 px-4 py-2 shadow-xl text-sm">
+          <span className="flex size-2 rounded-full bg-[#1ed760] animate-pulse" />
+          <span className="text-[#d8d8d8]">Playlist diproses di latar belakang</span>
+          <button onClick={() => { setShowSpotifyModal(true); }} className="text-xs font-bold text-[#1ed760] hover:underline cursor-pointer">
+            Buka
+          </button>
         </div>
       )}
 
