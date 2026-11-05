@@ -8,31 +8,33 @@ import {
   IconLoader2,
   IconBrandSpotify,
   IconLink,
+  IconTrash,
 } from "@tabler/icons-react";
 import type { TrackStemData } from "../lib/proceduralSongs";
+import type { LibrarySong } from "../lib/songApi";
 
 interface SidebarProps {
   activeView: "home" | "studio";
   onSelectView: (v: "home" | "studio") => void;
   currentTrack: TrackStemData | null;
-  onSelectPreset: (genre: "edm" | "pop" | "rock") => void;
+  library: LibrarySong[];
+  onSelectLibrary: (song: LibrarySong) => void;
+  onDeleteLibrary: (id: number) => void;
+  loadingLibrarySong: number | null;
   onFileUpload: (file: File) => void;
   isProcessing: boolean;
   onOpenSpotify: () => void;
   hasSpotifyJob: boolean;
 }
 
-const PRESETS: { genre: "edm" | "pop" | "rock"; name: string; artist: string; gradient: string; duration: string }[] = [
-  { genre: "edm", name: "Neon Cyber Drop", artist: "Riemann Waves", gradient: "from-[#1db954] to-[#0f5e2e]", duration: "0:16" },
-  { genre: "pop", name: "Midnight Groove", artist: "The Atmos", gradient: "from-[#8b5cf6] to-[#4c1d95]", duration: "0:16" },
-  { genre: "rock", name: "Overdrive Ignition", artist: "Volt Circuit", gradient: "from-[#fb7185] to-[#9f1239]", duration: "0:16" },
-];
-
 export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   onSelectView,
   currentTrack,
-  onSelectPreset,
+  library,
+  onSelectLibrary,
+  onDeleteLibrary,
+  loadingLibrarySong,
   onFileUpload,
   isProcessing,
   onOpenSpotify,
@@ -75,29 +77,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="px-4 pt-3 pb-2 font-bold text-[#a7a7a7]">Pustaka Kamu</div>
 
         <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-          {PRESETS.map((p) => {
-            const isCurrent = currentTrack?.name === p.name;
+          {library.map((song) => {
+            const isCurrent = currentTrack?.name === song.title;
+            const isLoading = loadingLibrarySong === song.id;
             return (
-              <button
-                key={p.genre}
-                onClick={() => onSelectPreset(p.genre)}
-                className={`w-full flex items-center gap-3 p-2 rounded-md cursor-pointer transition text-left ${
-                  isCurrent ? "bg-[#1a1a1a]" : "hover:bg-[#1a1a1a]"
-                }`}
+              <div
+                key={song.id}
+                onClick={() => !isLoading && onSelectLibrary(song)}
+                className={`w-full flex items-center gap-3 p-2 rounded-md transition text-left ${
+                  isLoading ? "opacity-60" : "cursor-pointer hover:bg-[#1a1a1a]"
+                } ${isCurrent ? "bg-[#1a1a1a]" : ""}`}
               >
-                <div className={`size-11 rounded bg-gradient-to-br ${p.gradient} flex items-center justify-center shrink-0`}>
-                  <IconMusic className="size-5 text-white/80" />
+                <div className="size-11 rounded bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center shrink-0">
+                  {isLoading
+                    ? <IconLoader2 className="size-5 text-white/80 animate-spin" />
+                    : <IconBrandSpotify className="size-5 text-white/80" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className={`text-sm font-semibold truncate ${isCurrent ? "text-[#1ed760]" : "text-white"}`}>
-                    {p.name}
+                    {song.title}
                   </div>
-                  <div className="text-xs text-[#a7a7a7] truncate">
-                    Preset {p.genre.toUpperCase()} · {p.artist}
-                  </div>
+                  <div className="text-xs text-[#a7a7a7] truncate">{song.artist}</div>
                 </div>
-                <span className="text-xs text-[#a7a7a7]">{p.duration}</span>
-              </button>
+                <button
+                  title="Hapus dari pustaka"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteLibrary(song.id);
+                  }}
+                  className="p-1 rounded hover:bg-[#333] text-[#a7a7a7] hover:text-white transition shrink-0 cursor-pointer"
+                >
+                  <IconTrash className="size-4" />
+                </button>
+              </div>
             );
           })}
 
@@ -146,6 +158,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <IconLink className="size-4 text-[#a7a7a7]" />
           </button>
+
+          {library.length === 0 && (
+            <div className="px-3 py-4 text-xs text-[#7a7a7a] leading-relaxed">
+              Belum ada lagu tersimpan. Tempel link Spotify — lagu yang sudah diproses otomatis muncul di sini dan bisa diputar ulang tanpa proses ulang.
+            </div>
+          )}
         </div>
       </div>
     </aside>

@@ -14,8 +14,81 @@ interface JobResponse {
   stems?: Record<string, string>;
 }
 
+export interface LibrarySong {
+  id: number;
+  url: string;
+  title: string;
+  artist: string;
+  stems: Record<string, string>;
+  created_at: string;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function decodeStemsToTrack(
+  stemsMap: Record<string, string>,
+  name: string,
+  artist: string,
+  onStatus?: (msg: string) => void
+): Promise<TrackStemData> {
+  const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const ctx = new AudioCtxClass();
+
+  let sampleRate = 44100;
+  let duration = 0;
+
+  const fetched: Record<string, Float32Array> = {};
+  for (const key of ["drums", "bass", "vocals", "guitar", "piano", "other"]) {
+    if (!stemsMap[key]) continue;
+    onStatus?.(`Mengunduh stem ${key}...`);
+    const res = await fetch(`${API_BASE}${stemsMap[key]}`);
+    if (!res.ok) throw new Error(`Gagal unduh stem ${key}.`);
+    const arr = await res.arrayBuffer();
+    const audioBuf = await ctx.decodeAudioData(arr);
+    sampleRate = audioBuf.sampleRate;
+    duration = audioBuf.duration;
+    const left = audioBuf.getChannelData(0);
+    const right = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : left;
+    const mono = new Float32Array(audioBuf.length);
+    for (let i = 0; i < audioBuf.length; i++) mono[i] = (left[i] + right[i]) * 0.5;
+    fetched[key] = mono;
+  }
+
+  ctx.close();
+
+  if (!fetched.drums) throw new Error("Stem utama (drums) tidak ditemukan di response backend.");
+
+  // Master = jumlah stem berbobot (disimulasikan di sisi klien)
+  const weights: [string, number][] = [["drums", 0.9], ["bass", 0.8], ["vocals", 0.8], ["guitar", 0.75], ["piano", 0.75], ["other", 0.7]];
+  const chunks = weights.filter(([k]) => fetched[k]);
+  const master = new Float32Array(fetched.drums.length);
+  for (let i = 0; i < master.length; i++) {
+    let sum = 0;
+    for (const [k, w] of chunks) sum += fetched[k][i] * w;
+    master[i] = Math.tanh(sum);
+  }
+
+  const stems: TrackStemData["stems"] = {
+    drums: fetched.drums,
+    bass: fetched.bass,
+    vocals: fetched.vocals,
+    other: fetched.other,
+    master,
+  };
+  if (fetched.guitar) stems.guitar = fetched.guitar;
+  if (fetched.piano) stems.piano = fetched.piano;
+
+  return {
+    name,
+    artist,
+    genre: "SPOTIFY",
+    bpm: 120,
+    duration,
+    sampleRate,
+    stems,
+  };
 }
 
 /**
@@ -51,62 +124,27 @@ export async function resolveSpotifyTrack(
   if (!job) throw new Error("Timeout menunggu backend.");
   if (job.status === "error") throw new Error(job.message || "Pemrosesan gagal di server.");
 
-  const stemsMap = job.stems!;
-  const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  const ctx = new AudioCtxClass();
+  return decodeStemsToTrack(job.stems!, job.title ?? "Lagu Spotify", job.artist ?? "Resolver", onStatus);
+}
 
-  let sampleRate = 44100;
-  let duration = 0;
-
-  // Master = jumlah keempat stem (di simulasi sisi klien)
-  const fetched: Record<string, Float32Array> = {};
-  for (const key of ["drums", "bass", "vocals", "guitar", "piano", "other"]) {
-    onStatus?.(`Mengunduh stem ${key}...`);
-    if (!stemsMap[key]) continue;
-    onStatus?.(`Mengunduh stem ${key}...`);
-    const res = await fetch(`${API_BASE}${stemsMap[key]}`);
-    if (!res.ok) throw new Error(`Gagal unduh stem ${key}.`);
-    const arr = await res.arrayBuffer();
-    const audioBuf = await ctx.decodeAudioData(arr);
-    sampleRate = audioBuf.sampleRate;
-    duration = audioBuf.duration;
-    const left = audioBuf.getChannelData(0);
-    const right = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : left;
-    const mono = new Float32Array(audioBuf.length);
-    for (let i = 0; i < audioBuf.length; i++) mono[i] = (left[i] + right[i]) * 0.5;
-    fetched[key] = mono;
+export async function fetchLibrary(): Promise<LibrarySong[]> {
+  const res = await fetch(`${API_BASE}/api/library`);
+  if (!res.ok) return [];
+  const rows = (await res.json()) as LibrarySong[];
+  for (const row of rows) {
+    row.stems = typeof row.stems === "string" ? JSON.parse(row.stems) : row.stems;
   }
+  return rows;
+}
 
-  ctx.close();
+export async function deleteLibrarySong(id: number): Promise<void> {
+  await fetch(`${API_BASE}/api/library/${id}`, { method: "DELETE" });
+}
 
-  if (!fetched.drums) throw new Error("Stem utama (drums) tidak ditemukan di response backend.");
-
-  const weights: [string, number][] = [["drums", 0.9], ["bass", 0.8], ["vocals", 0.8], ["guitar", 0.75], ["piano", 0.75], ["other", 0.7]];
-  const chunks = weights.filter(([k]) => fetched[k]);
-  const master = new Float32Array(fetched.drums.length);
-  for (let i = 0; i < master.length; i++) {
-    let sum = 0;
-    for (const [k, w] of chunks) sum += fetched[k][i] * w;
-    master[i] = Math.tanh(sum);
-  }
-
-  const stems: TrackStemData["stems"] = {
-    drums: fetched.drums,
-    bass: fetched.bass,
-    vocals: fetched.vocals,
-    other: fetched.other,
-    master,
-  };
-  if (fetched.guitar) stems.guitar = fetched.guitar;
-  if (fetched.piano) stems.piano = fetched.piano;
-
-  return {
-    name: job.title ?? "Lagu Spotify",
-    artist: job.artist ?? "Resolver",
-    genre: "SPOTIFY",
-    bpm: 120,
-    duration,
-    sampleRate,
-    stems,
-  };
+/** Muat ulang lagu dari pustaka tanpa proses ulang (stems tersimpan di server). */
+export async function loadLibrarySong(
+  song: LibrarySong,
+  onStatus?: (msg: string) => void
+): Promise<TrackStemData> {
+  return decodeStemsToTrack(song.stems, song.title, song.artist, onStatus);
 }

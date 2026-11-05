@@ -5,7 +5,6 @@ import { SlidingWindowBeatDetector } from "./lib/beatDetector";
 import type { BeatState } from "./lib/beatDetector";
 import { computeIntegrationMetrics } from "./lib/riemann";
 import type { IntegrationMetrics } from "./lib/riemann";
-import { generatePresetSong } from "./lib/proceduralSongs";
 import type { TrackStemData } from "./lib/proceduralSongs";
 import {
   IconHome,
@@ -17,7 +16,8 @@ import {
   IconChevronRight,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { resolveSpotifyTrack } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack } from "./lib/songApi";
+import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
 import { BeatDetectorPanel } from "./components/BeatDetectorPanel";
@@ -29,7 +29,6 @@ export function App() {
   const beatDetectorRef = useRef<SlidingWindowBeatDetector>(new SlidingWindowBeatDetector());
 
   const [activeView, setActiveView] = useState<"home" | "studio">("home");
-  const [, setActivePreset] = useState<"edm" | "pop" | "rock">("edm");
   const [currentTrack, setCurrentTrack] = useState<TrackStemData | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -60,6 +59,8 @@ export function App() {
   const [showSpotifyModal, setShowSpotifyModal] = useState<boolean>(false);
   const [spotifyUrl, setSpotifyUrl] = useState<string>("");
   const [spotifyStatus, setSpotifyStatus] = useState<string>("");
+  const [library, setLibrary] = useState<LibrarySong[]>([]);
+  const [loadingLibrarySongId, setLoadingLibrarySongId] = useState<number | null>(null);
 
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
@@ -68,9 +69,7 @@ export function App() {
     engineRef.current = engine;
     engine.onTimeUpdate((time) => setCurrentTime(time));
 
-    const initialTrack = generatePresetSong("edm");
-    setCurrentTrack(initialTrack);
-    engine.setTrack(initialTrack);
+    fetchLibrary().then(setLibrary).catch(() => {}); // backend mati = pustaka kosong, bukan error
 
     return () => {
       engine.stop();
@@ -80,18 +79,6 @@ export function App() {
   useEffect(() => {
     beatDetectorRef.current.setSensitivity(sensitivityC);
   }, [sensitivityC]);
-
-  const handleSelectPreset = (genre: "edm" | "pop" | "rock") => {
-    setActivePreset(genre);
-    const newTrack = generatePresetSong(genre);
-    setCurrentTrack(newTrack);
-    if (engineRef.current) {
-      engineRef.current.setTrack(newTrack);
-      setIsPlaying(false);
-      setCurrentTime(0);
-    }
-    beatDetectorRef.current.reset();
-  };
 
   const activeSamples = useMemo(() => {
     if (!currentTrack) return null;
@@ -210,6 +197,31 @@ export function App() {
     if (engineRef.current) engineRef.current.toggleMute("master");
   };
 
+  const handleSelectLibrary = async (song: LibrarySong) => {
+    setLoadingLibrarySongId(song.id);
+    try {
+      const track = await loadLibrarySong(song);
+      setCurrentTrack(track);
+      setActiveStemKey("master");
+      if (engineRef.current) {
+        engineRef.current.setTrack(track);
+        setIsPlaying(false);
+        setCurrentTime(0);
+      }
+      beatDetectorRef.current.reset();
+      setActiveView("studio");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Gagal memuat lagu dari pustaka.");
+    } finally {
+      setLoadingLibrarySongId(null);
+    }
+  };
+
+  const handleDeleteLibrary = async (id: number) => {
+    await deleteLibrarySong(id);
+    setLibrary((prev) => prev.filter((x) => x.id !== id));
+  };
+
   const handleFileUpload = async (file: File) => {
     try {
       setIsProcessing(true);
@@ -284,6 +296,7 @@ export function App() {
       }
       setShowSpotifyModal(false);
       setActiveView("studio");
+      fetchLibrary().then(setLibrary).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memproses link Spotify";
       setSpotifyStatus(`Error: ${msg}`);
@@ -300,7 +313,10 @@ export function App() {
           activeView={activeView}
           onSelectView={setActiveView}
           currentTrack={currentTrack}
-          onSelectPreset={handleSelectPreset}
+          library={library}
+          onSelectLibrary={handleSelectLibrary}
+          onDeleteLibrary={handleDeleteLibrary}
+          loadingLibrarySong={loadingLibrarySongId}
           onFileUpload={handleFileUpload}
           isProcessing={isProcessing}
           onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); }}
@@ -324,38 +340,23 @@ export function App() {
             <div className="px-6 pb-24">
               <h1 className="text-3xl font-bold tracking-tight mb-6">Selamat mendengarkan</h1>
 
-              {/* Grid Preset Track */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-10">
-                {([
-                  { genre: "edm", name: "Neon Cyber Drop", artist: "Riemann Waves", gradient: "from-[#1db954] to-[#0f5e2e]", bpm: 128 },
-                  { genre: "pop", name: "Midnight Groove", artist: "The Atmos", gradient: "from-[#8b5cf6] to-[#4c1d95]", bpm: 112 },
-                  { genre: "rock", name: "Overdrive Ignition", artist: "Volt Circuit", gradient: "from-[#fb7185] to-[#9f1239]", bpm: 140 },
-                ] as const).map((p) => {
-                  const isCurrent = currentTrack?.name === p.name;
-                  return (
-                    <button
-                      key={p.genre}
-                      onClick={() => {
-                        handleSelectPreset(p.genre);
-                        setActiveView("studio");
-                      }}
-                      className="group relative flex flex-col gap-3 p-4 rounded-lg bg-[#181818]/60 hover:bg-[#1a1a1a] text-left transition cursor-pointer"
-                    >
-                      <div className={`relative size-16 rounded-md bg-gradient-to-br ${p.gradient} flex items-center justify-center`}>
-                        <IconMusic className="size-7 text-white/80" />
-                        <div className="absolute -bottom-2 -right-2 size-9 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-xl">
-                          <IconMusic className="size-4 text-black" />
-                        </div>
-                      </div>
-                      <div>
-                        <div className={`font-bold ${isCurrent ? "text-[#1ed760]" : "text-white"}`}>{p.name}</div>
-                        <div className="text-sm text-[#a7a7a7]">
-                          {p.artist} · {p.bpm} BPM · Preset {p.genre.toUpperCase()}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+              {/* Empty state: arahkan ke unggah / Spotify */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+                <button
+                  onClick={() => setActiveView("studio")}
+                  className="p-5 rounded-lg bg-[#181818] hover:bg-[#1a1a1a] transition text-left cursor-pointer"
+                >
+                  <div className="font-bold text-white mb-1">Analisis lagu terakhir</div>
+                  <p className="text-sm text-[#a7a7a7]">
+                    {currentTrack ? `${currentTrack.name} · ${currentTrack.artist}` : "Belum ada lagu. Unggah file atau tautkan lagu Spotify lewat Pustaka di sidebar."}
+                  </p>
+                </button>
+                <div className="p-5 rounded-lg bg-[#181818]">
+                  <div className="font-bold text-white mb-1">Lagu tersimpan: {library.length}</div>
+                  <p className="text-sm leading-relaxed text-[#a7a7a7]">
+                    Link Spotify yang pernah diproses otomatis tersimpan dan bisa diputar ulang tanpa memproses ulang.
+                  </p>
+                </div>
               </div>
 
               {/* Fitur */}
@@ -463,7 +464,7 @@ export function App() {
             <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
               Tempel link lagu dari aplikasi Spotify (Share → Copy Song Link).
-              Server akan meminjam audio via resolver lalu memisahkan 4 stem dengan AI.
+              Server akan meminjam audio via resolver lalu memisahkan 6 stem dengan AI.
               Berlangsung 1–5 menit tergantung durasi lagu.
             </p>
             <input
