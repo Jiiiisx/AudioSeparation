@@ -372,7 +372,7 @@ export function App() {
 
           {activeView === "home" ? (
             /* ---------- BERANDA ---------- */
-            <div className="px-4 sm:px-6 pb-36">
+            <div className="px-4 sm:px-6 pt-4 pb-36">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6">Selamat mendengarkan</h1>
 
               {/* Empty state: arahkan ke unggah / Spotify */}
@@ -438,7 +438,7 @@ export function App() {
             </div>
           ) : (
             /* ---------- STUDIO ANALISIS ---------- */
-            <div className="px-4 sm:px-6 pb-36">
+            <div className="px-4 sm:px-6 pt-4 pb-36">
               <div className="flex items-end gap-3 sm:gap-5 mb-4 sm:mb-6">
                 <div className="size-20 sm:size-28 shrink-0 rounded-lg bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shadow-xl">
                   <IconMusic className="size-8 sm:size-12 text-white/80" />
