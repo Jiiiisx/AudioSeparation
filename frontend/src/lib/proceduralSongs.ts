@@ -16,6 +16,8 @@ export interface TrackStemData {
     bass: Float32Array;
     vocals: Float32Array;
     other: Float32Array;
+    guitar?: Float32Array;
+    piano?: Float32Array;
     master: Float32Array;
   };
 }

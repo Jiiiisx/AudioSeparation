@@ -6,7 +6,7 @@
 
 import type { TrackStemData } from './proceduralSongs';
 
-export type StemKey = 'drums' | 'bass' | 'vocals' | 'other' | 'master';
+export type StemKey = 'drums' | 'bass' | 'vocals' | 'guitar' | 'piano' | 'other' | 'master';
 
 export interface StemTrackConfig {
   key: StemKey;
@@ -34,6 +34,8 @@ export class MultiTrackAudioEngine {
     ['drums', { key: 'drums', label: 'Drums / Kick', volume: 0.9, isMuted: false, isSolo: false }],
     ['bass', { key: 'bass', label: 'Bass Guitar / Sub', volume: 0.85, isMuted: false, isSolo: false }],
     ['vocals', { key: 'vocals', label: 'Vocals', volume: 0.85, isMuted: false, isSolo: false }],
+    ['guitar', { key: 'guitar', label: 'Guitar', volume: 0.75, isMuted: false, isSolo: false }],
+    ['piano', { key: 'piano', label: 'Piano / Keys', volume: 0.75, isMuted: false, isSolo: false }],
     ['other', { key: 'other', label: 'Melody / Synth / Chords', volume: 0.75, isMuted: false, isSolo: false }],
     ['master', { key: 'master', label: 'Master Output', volume: 1.0, isMuted: false, isSolo: false }],
   ]);
@@ -57,6 +59,12 @@ export class MultiTrackAudioEngine {
     }
   }
 
+  private stemKeys(): StemKey[] {
+    const all: StemKey[] = ['drums', 'bass', 'vocals', 'guitar', 'piano', 'other'];
+    if (!this.currentTrack) return all;
+    return all.filter((k) => k in this.currentTrack!.stems);
+  }
+
   public setTrack(trackData: TrackStemData) {
     this.stop();
     this.initContext();
@@ -66,13 +74,15 @@ export class MultiTrackAudioEngine {
     if (!this.ctx) return;
 
     // Convert Float32Array PCM menjadi AudioBuffer native Web Audio
-    const keys: StemKey[] = ['drums', 'bass', 'vocals', 'other'];
     const totalSamples = trackData.stems.drums.length;
+    const keys = this.stemKeys();
 
     for (const key of keys) {
       const buf = this.ctx.createBuffer(1, totalSamples, trackData.sampleRate);
       const chData = buf.getChannelData(0);
-      chData.set(trackData.stems[key]);
+      const data = trackData.stems[key];
+      if (!data) continue;
+      chData.set(data);
       this.audioBuffers.set(key, buf);
     }
   }
@@ -86,7 +96,7 @@ export class MultiTrackAudioEngine {
     this.startTime = this.ctx.currentTime - offset;
 
     // Buat AudioBufferSourceNode baru untuk setiap stem
-    const keys: StemKey[] = ['drums', 'bass', 'vocals', 'other'];
+    const keys = this.stemKeys();
 
     for (const key of keys) {
       const buffer = this.audioBuffers.get(key);
@@ -215,7 +225,7 @@ export class MultiTrackAudioEngine {
       if (key !== 'master' && cfg.isSolo) hasSolo = true;
     });
 
-    const keys: StemKey[] = ['drums', 'bass', 'vocals', 'other'];
+    const keys = this.stemKeys();
     keys.forEach((key) => {
       const cfg = this.trackConfigs.get(key);
       const gainNode = this.gainNodes.get(key);

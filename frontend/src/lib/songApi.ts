@@ -20,7 +20,7 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Alur: link Spotify → backend antri pekerjaan (job) → polling status
- * → saat selesai, fetch 4 stem MP3 → decode jadi PCM mono → TrackStemData.
+ * → saat selesai, fetch stem MP3 → decode jadi PCM mono → TrackStemData.
  */
 export async function resolveSpotifyTrack(
   url: string,
@@ -36,9 +36,9 @@ export async function resolveSpotifyTrack(
   }
   const { job_id } = (await startRes.json()) as { job_id: string };
 
-  // Polling selama max 8 menit
+  // Polling selama max 10 menit (6-stem lebih lambat dari 4-stem)
   let job: JobResponse | null = null;
-  const deadline = Date.now() + 8 * 60 * 1000;
+  const deadline = Date.now() + 10 * 60 * 1000;
   while (Date.now() < deadline) {
     await sleep(3000);
     const poll = await fetch(`${API_BASE}/api/job/${job_id}`);
@@ -60,7 +60,9 @@ export async function resolveSpotifyTrack(
 
   // Master = jumlah keempat stem (di simulasi sisi klien)
   const fetched: Record<string, Float32Array> = {};
-  for (const key of ["drums", "bass", "vocals", "other"]) {
+  for (const key of ["drums", "bass", "vocals", "guitar", "piano", "other"]) {
+    onStatus?.(`Mengunduh stem ${key}...`);
+    if (!stemsMap[key]) continue;
     onStatus?.(`Mengunduh stem ${key}...`);
     const res = await fetch(`${API_BASE}${stemsMap[key]}`);
     if (!res.ok) throw new Error(`Gagal unduh stem ${key}.`);
@@ -75,12 +77,28 @@ export async function resolveSpotifyTrack(
     fetched[key] = mono;
   }
 
+  ctx.close();
+
+  if (!fetched.drums) throw new Error("Stem utama (drums) tidak ditemukan di response backend.");
+
+  const weights: [string, number][] = [["drums", 0.9], ["bass", 0.8], ["vocals", 0.8], ["guitar", 0.75], ["piano", 0.75], ["other", 0.7]];
+  const chunks = weights.filter(([k]) => fetched[k]);
   const master = new Float32Array(fetched.drums.length);
   for (let i = 0; i < master.length; i++) {
-    master[i] = Math.tanh(fetched.drums[i] * 0.9 + fetched.bass[i] * 0.8 + fetched.vocals[i] * 0.8 + fetched.other[i] * 0.7);
+    let sum = 0;
+    for (const [k, w] of chunks) sum += fetched[k][i] * w;
+    master[i] = Math.tanh(sum);
   }
 
-  ctx.close();
+  const stems: TrackStemData["stems"] = {
+    drums: fetched.drums,
+    bass: fetched.bass,
+    vocals: fetched.vocals,
+    other: fetched.other,
+    master,
+  };
+  if (fetched.guitar) stems.guitar = fetched.guitar;
+  if (fetched.piano) stems.piano = fetched.piano;
 
   return {
     name: job.title ?? "Lagu Spotify",
@@ -89,12 +107,6 @@ export async function resolveSpotifyTrack(
     bpm: 120,
     duration,
     sampleRate,
-    stems: {
-      drums: fetched.drums,
-      bass: fetched.bass,
-      vocals: fetched.vocals,
-      other: fetched.other,
-      master,
-    },
+    stems,
   };
 }

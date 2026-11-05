@@ -97,23 +97,23 @@ def run_pipeline(job_id: str, source_url: str) -> None:
         if not audio_path.exists():
             raise RuntimeError("File audio hasil resolver tidak ditemukan.")
 
-        set_job(job_id, status="separating", message="AI memisahkan 4 stem (0,5–3 menit)...")
+        set_job(job_id, status="separating", message="AI memisahkan 6 stem (0,5–3 menit)...")
         subprocess.run(
-            ["demucs", "-n", "htdemucs", "--mp3", "--mp3-bitrate", "192", "-o", str(workdir), str(audio_path)],
+            ["demucs", "-n", "htdemucs_6s", "--mp3", "--mp3-bitrate", "192", "-o", str(workdir), str(audio_path)],
             check=True,
             timeout=900,
             capture_output=True,
         )
 
-        model_dir = workdir / "htdemucs" / audio_path.stem
+        model_dir = workdir / "htdemucs_6s" / audio_path.stem
         out = {}
-        for stem in ("drums", "bass", "vocals", "other"):
+        for stem in ("drums", "bass", "vocals", "piano", "guitar", "other"):
             src = model_dir / f"{stem}.mp3"
             if src.exists():
                 out[stem] = f"/static/{job_id}/{stem}.mp3"
                 shutil.copy(src, workdir / f"{stem}.mp3")
 
-        if len(out) < 4:
+        if len(out) < 6:
             raise RuntimeError("Demucs tidak menghasilkan 4 stem lengkap.")
 
         set_job(job_id, status="done", title=title, artist=artist, stems=out)

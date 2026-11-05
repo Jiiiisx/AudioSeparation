@@ -3,6 +3,7 @@ import type { StemKey, StemTrackConfig } from "../lib/audioEngine";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 
 interface StemMixerProps {
+  availableKeys: StemKey[];
   trackConfigs: Map<StemKey, StemTrackConfig>;
   activeStemKey: StemKey;
   setActiveStemKey: (key: StemKey) => void;
@@ -16,10 +17,13 @@ const STEM_META: { key: StemKey; label: string; color: string }[] = [
   { key: "drums", label: "Drums & Percussion", color: "text-amber-400" },
   { key: "bass", label: "Bass & Sub-Bass", color: "text-purple-400" },
   { key: "vocals", label: "Vocal Track", color: "text-blue-400" },
+  { key: "guitar", label: "Gitar & Kayu Awal", color: "text-lime-400" },
+  { key: "piano", label: "Piano / Keys", color: "text-cyan-400" },
   { key: "other", label: "Instruments Lain", color: "text-rose-400" },
 ];
 
 export const StemMixer: React.FC<StemMixerProps> = ({
+  availableKeys,
   trackConfigs,
   activeStemKey,
   setActiveStemKey,
@@ -28,7 +32,7 @@ export const StemMixer: React.FC<StemMixerProps> = ({
   onToggleSolo,
   stemEnergies,
 }) => {
-  const totalE = Math.max(1e-9, stemEnergies.drums + stemEnergies.bass + stemEnergies.vocals + stemEnergies.other);
+  const totalE = Math.max(1e-9, availableKeys.reduce((sum, k) => sum + (stemEnergies[k] ?? 0), 0));
 
   return (
     <section className="bg-[#181818] rounded-lg p-5">
@@ -37,25 +41,35 @@ export const StemMixer: React.FC<StemMixerProps> = ({
           <IconAdjustmentsHorizontal className="size-5 text-[#1db954]" />
           Stem Mixer
         </h2>
-        <span className="text-xs text-[#a7a7a7]">4 channel terpisah</span>
+        <span className="text-xs text-[#a7a7a7]">{availableKeys.length}/6 channel terpisah</span>
       </div>
 
       <div className="flex flex-col gap-2">
         {STEM_META.map(({ key, label, color }) => {
           const cfg = trackConfigs.get(key);
           if (!cfg) return null;
-          const sharePct = (stemEnergies[key] / totalE) * 100;
-          const isActive = activeStemKey === key;
+          const available = availableKeys.includes(key);
+          const sharePct = ((stemEnergies[key] ?? 0) / totalE) * 100;
+          const isActive = activeStemKey === key && available;
 
           return (
             <div
               key={key}
-              onClick={() => setActiveStemKey(key)}
-              className={`group p-3 rounded-md cursor-pointer transition ${
-                isActive ? "bg-[#282828]" : "bg-transparent hover:bg-[#1a1a1a]"
-              }`}
+            onClick={available ? () => setActiveStemKey(key) : undefined}
+            className={`group p-3 rounded-md ${
+              !available
+                ? "opacity-35 grayscale"
+                : isActive
+                ? "bg-[#282828] cursor-pointer"
+                : "bg-transparent hover:bg-[#1a1a1a] cursor-pointer"
+            }`}
             >
               <div className="flex items-center gap-3">
+                {!available && (
+                  <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-[#a7a7a7] bg-[#282828] rounded-full px-2 py-0.5 whitespace-nowrap">
+                    Belum Model
+                  </span>
+                )}
                 <div className={`size-9 rounded-full bg-[#333] flex items-center justify-center ${color} shrink-0`}>
                   <span className="text-xs font-bold uppercase">{key.slice(0, 2)}</span>
                 </div>

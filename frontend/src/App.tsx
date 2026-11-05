@@ -50,7 +50,7 @@ export function App() {
   });
 
   const [stemEnergies, setStemEnergies] = useState<Record<StemKey, number>>({
-    drums: 0, bass: 0, vocals: 0, other: 0, master: 0,
+    drums: 0, bass: 0, vocals: 0, guitar: 0, piano: 0, other: 0, master: 0,
   });
 
   const [masterVolume, setMasterVolume] = useState<number>(1.0);
@@ -95,7 +95,7 @@ export function App() {
 
   const activeSamples = useMemo(() => {
     if (!currentTrack) return null;
-    return currentTrack.stems[activeStemKey];
+    return currentTrack.stems[activeStemKey] ?? currentTrack.stems.master;
   }, [currentTrack, activeStemKey]);
 
   useEffect(() => {
@@ -122,6 +122,8 @@ export function App() {
       bass: calcStemEnergy(currentTrack.stems.bass),
       vocals: calcStemEnergy(currentTrack.stems.vocals),
       other: calcStemEnergy(currentTrack.stems.other),
+      guitar: currentTrack.stems.guitar ? calcStemEnergy(currentTrack.stems.guitar) : 0,
+      piano: currentTrack.stems.piano ? calcStemEnergy(currentTrack.stems.piano) : 0,
       master: calcStemEnergy(currentTrack.stems.master),
     });
   }, [currentTime, currentTrack]);
@@ -438,6 +440,7 @@ export function App() {
 
                 <div className="xl:col-span-5">
                   <StemMixer
+                    availableKeys={currentTrack ? (Object.keys(currentTrack.stems).filter((k) => k !== "master") as StemKey[]) : ["drums", "bass", "vocals", "other"]}
                     trackConfigs={trackConfigs}
                     activeStemKey={activeStemKey}
                     setActiveStemKey={setActiveStemKey}
