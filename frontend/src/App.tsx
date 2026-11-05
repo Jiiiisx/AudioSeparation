@@ -12,9 +12,7 @@ import {
   IconAdjustmentsHorizontal,
   IconHome,
   IconChartHistogram,
-  IconUser,
-  IconMusic,
-  IconDeviceAnalytics,
+    IconMusic,
   IconSettings2,
   IconChevronRight,
 } from "@tabler/icons-react";
@@ -361,23 +359,16 @@ export function App() {
         </div>
 
         <main className="relative flex-1 overflow-y-auto rounded-lg bg-gradient-to-b from-[#1f1f1f] via-[#121212] to-[#121212]">
-          {/* Sticky header */}
-          <header className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-black/40 backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowMobileNav(true)}
-                className="md:hidden size-8 rounded-full bg-[#282828] flex items-center justify-center cursor-pointer"
-                title="Menu"
-              >
-                <IconMenu2 className="size-5 text-white" />
-              </button>
-              <IconDeviceAnalytics className="size-5 text-[#1db954]" />
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#a7a7a7]">Riemann Audio Lab</span>
-            </div>
-            <button className="size-8 rounded-full bg-[#282828] flex items-center justify-center hover:scale-105 transition cursor-pointer" title="Profil">
-              <IconUser className="size-4 text-white" />
+          {/* Tombol menu mobile (desktop tanpa header) */}
+          <div className="md:hidden sticky top-0 z-10 px-4 pt-3">
+            <button
+              onClick={() => setShowMobileNav(true)}
+              className="size-8 rounded-full bg-[#282828] flex items-center justify-center cursor-pointer border border-white/10"
+              title="Menu"
+            >
+              <IconMenu2 className="size-5 text-white" />
             </button>
-          </header>
+          </div>
 
           {activeView === "home" ? (
             /* ---------- BERANDA ---------- */
