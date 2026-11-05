@@ -182,8 +182,15 @@ SPOTIFY_KIND_RE = re.compile(r"open\.spotify\.com/(playlist|album)/(\w+)")
 
 def _sp_embed_tracks(kind: str, list_id: str) -> list[dict]:
     """Ambil tracklist dari halaman embed Spotify (tanpa API key)."""
-    res = requests.get(f"https://open.spotify.com/embed/{kind}/{list_id}", headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+    res = requests.get(f"https://open.spotify.com/embed/{kind}/{list_id}",
+                       headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
     res.raise_for_status()
+    if "Page not available" in res.text:
+        raise RuntimeError(
+            "Spotify tidak mengizinkan playlist ini dibaca otomatis "
+            "(khas playlist personal/kolaboratif atau profil tertutup). "
+            "Coba playlist resmi/editorial, atau playlist berisi lagu per lagu."
+        )
     m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', res.text, re.S)
     if not m:
         raise RuntimeError("Halaman embed Spotify tidak berisi data tracklist.")
