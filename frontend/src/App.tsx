@@ -93,8 +93,12 @@ export function App() {
     return currentTrack.stems[activeStemKey] ?? currentTrack.stems.master;
   }, [currentTrack, activeStemKey]);
 
+  const lastPerFrameRunRef = useRef<number>(-1);
   useEffect(() => {
     if (!currentTrack) return;
+    // Jalankan analisis per-frame hanya jika waktu maju >= 40ms (hindari re-render ganda)
+    if (Math.abs(currentTime - lastPerFrameRunRef.current) < 0.04) return;
+    lastPerFrameRunRef.current = currentTime;
     const sampleRate = currentTrack.sampleRate;
     const curIdx = Math.floor(currentTime * sampleRate);
 
@@ -372,7 +376,7 @@ export function App() {
 
           {activeView === "home" ? (
             /* ---------- BERANDA ---------- */
-            <div className="px-4 sm:px-6 pb-28">
+            <div className="px-4 sm:px-6 pb-36">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6">Selamat mendengarkan</h1>
 
               {/* Empty state: arahkan ke unggah / Spotify */}
@@ -438,7 +442,7 @@ export function App() {
             </div>
           ) : (
             /* ---------- STUDIO ANALISIS ---------- */
-            <div className="px-4 sm:px-6 pb-28">
+            <div className="px-4 sm:px-6 pb-36">
               <div className="flex items-end gap-3 sm:gap-5 mb-4 sm:mb-6">
                 <div className="size-20 sm:size-28 shrink-0 rounded-lg bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shadow-xl">
                   <IconMusic className="size-8 sm:size-12 text-white/80" />
@@ -467,28 +471,30 @@ export function App() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-                <div className={studioTab === "visual" ? "flex flex-col gap-4 xl:col-span-7" : "hidden xl:flex xl:col-span-7 flex-col gap-4"}>
-                  <RiemannVisualizer
-                    samples={activeSamples}
-                    sampleRate={currentTrack?.sampleRate || 44100}
-                    currentTime={currentTime}
-                    duration={duration}
-                    partitionCount={partitionCount}
-                    setPartitionCount={setPartitionCount}
-                    windowDurationSec={windowDurationSec}
-                    setWindowDurationSec={setWindowDurationSec}
-                    isBeatHit={beatState.isBeat}
-                    activeStemLabel={activeStemKey}
-                  />
-                  <div className={studioTab === "beats" ? "contents xl:contents" : "hidden xl:block"}>
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 gap-y-6 items-start">
+                <div className="xl:col-span-7 flex flex-col gap-4 gap-y-5">
+                  <div className={studioTab === "visual" ? "block" : "hidden xl:block"}>
+                    <RiemannVisualizer
+                      samples={activeSamples}
+                      sampleRate={currentTrack?.sampleRate || 44100}
+                      currentTime={currentTime}
+                      duration={duration}
+                      partitionCount={partitionCount}
+                      setPartitionCount={setPartitionCount}
+                      windowDurationSec={windowDurationSec}
+                      setWindowDurationSec={setWindowDurationSec}
+                      isBeatHit={beatState.isBeat}
+                      activeStemLabel={activeStemKey}
+                    />
+                  </div>
+                  <div className={studioTab === "beats" ? "block" : "hidden xl:block"}>
                     <BeatDetectorPanel
                       beatState={beatState}
                       sensitivityC={sensitivityC}
                       setSensitivityC={setSensitivityC}
                     />
                   </div>
-                  <div className={studioTab === "integrasi" ? "contents xl:contents" : "hidden xl:block"}>
+                  <div className={studioTab === "integrasi" ? "block" : "hidden xl:block"}>
                     <IntegrationMetricsTable metrics={currentMetrics} />
                   </div>
                 </div>
@@ -569,7 +575,7 @@ export function App() {
       {activeView === "studio" && currentTrack && (
         <button
           onClick={() => setShowMixerSheet(true)}
-          className="xl:hidden fixed right-4 bottom-20 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
+          className="xl:hidden fixed right-4 bottom-24 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
         >
           <IconAdjustmentsHorizontal className="size-5" />
           Mixer

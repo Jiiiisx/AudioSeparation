@@ -156,9 +156,9 @@ export const RiemannVisualizer: React.FC<RiemannVisualizerProps> = ({
   }, [samples, sampleRate, currentTime, partitionCount, windowDurationSec, isBeatHit, activeStemLabel]);
 
   return (
-    <section className="bg-[#181818] rounded-lg p-5">
+    <section className="bg-[#181818] rounded-lg p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <h2 className="text-base sm:text-lg font-bold text-white flex flex-wrap items-center gap-2">
           <IconChartHistogram className="size-5 text-[#1db954]" />
           Visualisasi Balok Riemann
           <span className="text-sm font-normal text-[#a7a7a7]">P(t) = [f(t)]²</span>
@@ -190,7 +190,7 @@ export const RiemannVisualizer: React.FC<RiemannVisualizerProps> = ({
         )}
       </div>
 
-      <div className="mt-4 pt-3 border-t border-white/10">
+      <div className="mt-4 pt-3 border-t border-white/10 space-y-1">
         <div className="flex justify-between text-xs mb-1.5">
           <span className="text-[#a7a7a7]">Kerapatan partisi (N)</span>
           <span className="text-[#1ed760] font-bold">{partitionCount} balok</span>
