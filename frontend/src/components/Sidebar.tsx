@@ -24,6 +24,7 @@ interface SidebarProps {
   onFileUpload: (file: File) => void;
   isProcessing: boolean;
   onOpenSpotify: () => void;
+  className?: string;
   hasSpotifyJob: boolean;
 }
 
@@ -39,11 +40,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isProcessing,
   onOpenSpotify,
   hasSpotifyJob,
+  className = "",
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <aside className="hidden md:flex w-[280px] shrink-0 flex-col gap-2 py-2 pl-2 h-full">
+    <aside className={`flex w-full w-[280px] max-w-full shrink-0 flex-col gap-2 py-2 h-full ${className}`}>
+    {/* desktop parent menyembunyikan via kelas di App */}
       <nav className="bg-[#121212] rounded-lg p-2">
         <div className="flex items-center gap-2 px-3 py-2 mb-2">
           <div className="size-7 rounded-full bg-[#1db954] flex items-center justify-center">

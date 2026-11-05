@@ -7,6 +7,9 @@ import { computeIntegrationMetrics } from "./lib/riemann";
 import type { IntegrationMetrics } from "./lib/riemann";
 import type { TrackStemData } from "./lib/proceduralSongs";
 import {
+  IconMenu2,
+  IconX,
+  IconAdjustmentsHorizontal,
   IconHome,
   IconChartHistogram,
   IconUser,
@@ -63,6 +66,9 @@ export function App() {
   const [library, setLibrary] = useState<LibrarySong[]>([]);
   const [loadingLibrarySongId, setLoadingLibrarySongId] = useState<number | null>(null);
   const [batchTracks, setBatchTracks] = useState<BatchTrack[] | null>(null);
+  const [showMobileNav, setShowMobileNav] = useState<boolean>(false);
+  const [showMixerSheet, setShowMixerSheet] = useState<boolean>(false);
+  const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
 
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
@@ -329,24 +335,33 @@ export function App() {
   return (
     <div className="h-screen flex flex-col bg-[#121212] text-white overflow-hidden">
       <div className="flex-1 flex gap-2 overflow-hidden">
-        <Sidebar
-          activeView={activeView}
-          onSelectView={setActiveView}
-          currentTrack={currentTrack}
-          library={library}
-          onSelectLibrary={handleSelectLibrary}
-          onDeleteLibrary={handleDeleteLibrary}
-          loadingLibrarySong={loadingLibrarySongId}
-          onFileUpload={handleFileUpload}
-          isProcessing={isProcessing}
-          onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); }}
-          hasSpotifyJob={hasSpotifyJob}
-        />
+        <div className="hidden md:block">
+          <Sidebar
+            activeView={activeView}
+            onSelectView={setActiveView}
+            currentTrack={currentTrack}
+            library={library}
+            onSelectLibrary={handleSelectLibrary}
+            onDeleteLibrary={handleDeleteLibrary}
+            loadingLibrarySong={loadingLibrarySongId}
+            onFileUpload={handleFileUpload}
+            isProcessing={isProcessing}
+            onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); }}
+            hasSpotifyJob={hasSpotifyJob}
+          />
+        </div>
 
         <main className="relative flex-1 overflow-y-auto rounded-lg bg-gradient-to-b from-[#1f1f1f] via-[#121212] to-[#121212]">
           {/* Sticky header */}
-          <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-black/40 backdrop-blur-md">
+          <header className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-black/40 backdrop-blur-md">
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowMobileNav(true)}
+                className="md:hidden size-8 rounded-full bg-[#282828] flex items-center justify-center cursor-pointer"
+                title="Menu"
+              >
+                <IconMenu2 className="size-5 text-white" />
+              </button>
               <IconDeviceAnalytics className="size-5 text-[#1db954]" />
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#a7a7a7]">Riemann Audio Lab</span>
             </div>
@@ -357,8 +372,8 @@ export function App() {
 
           {activeView === "home" ? (
             /* ---------- BERANDA ---------- */
-            <div className="px-6 pb-24">
-              <h1 className="text-3xl font-bold tracking-tight mb-6">Selamat mendengarkan</h1>
+            <div className="px-4 sm:px-6 pb-28">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6">Selamat mendengarkan</h1>
 
               {/* Empty state: arahkan ke unggah / Spotify */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
@@ -385,8 +400,8 @@ export function App() {
                 {[
                   {
                     icon: <IconSettings2 className="size-6 text-[#1db954]" />,
-                    title: "Stem Mixer 4 Channel",
-                    desc: "Pisahkan drums, bass, vokal & instrumen lain. Solo untuk mendengar drum saja, mute untuk karaoke tanpa vokal.",
+                    title: "Stem Mixer 6 Channel",
+                    desc: "Pisahkan drums, bass, vokal, gitar, piano & instru lain. Solo untuk mendengar drum saja, mute untuk karaoke tanpa vokal.",
                     action: "Buka Studio Analisis",
                   },
                   {
@@ -423,22 +438,37 @@ export function App() {
             </div>
           ) : (
             /* ---------- STUDIO ANALISIS ---------- */
-            <div className="px-6 pb-24">
-              <div className="flex items-end gap-5 mb-6">
-                <div className="size-28 shrink-0 rounded-lg bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shadow-xl">
-                  <IconMusic className="size-12 text-white/80" />
+            <div className="px-4 sm:px-6 pb-28">
+              <div className="flex items-end gap-3 sm:gap-5 mb-4 sm:mb-6">
+                <div className="size-20 sm:size-28 shrink-0 rounded-lg bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shadow-xl">
+                  <IconMusic className="size-8 sm:size-12 text-white/80" />
                 </div>
                 <div className="min-w-0">
                   <span className="text-xs font-bold uppercase tracking-widest text-[#1ed760]">Track</span>
-                  <h1 className="text-4xl font-bold tracking-tight truncate">{currentTrack?.name || "Tidak ada track"}</h1>
+                  <h1 className="text-2xl sm:text-4xl font-bold tracking-tight truncate">{currentTrack?.name || "Tidak ada track"}</h1>
                   <p className="text-sm text-[#a7a7a7] mt-1">
                     {currentTrack?.artist} · {currentTrack?.bpm} BPM · Fs 44.100 Hz · {currentTrack?.genre}
                   </p>
                 </div>
               </div>
 
+              {/* Tab baru (mobile / tablet); desktop pakai tampilan 2 kolom di bawah */}
+              <div className="xl:hidden mb-4 flex gap-2 overflow-x-auto pb-1">
+                {([["visual", "Riemann"], ["beats", "Ketukan"], ["integrasi", "Integrasi"]] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    onClick={() => setStudioTab(k)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold whitespace-nowrap transition cursor-pointer ${
+                      studioTab === k ? "bg-white text-black" : "bg-[#282828] text-[#a7a7a7] hover:text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-                <div className="xl:col-span-7 flex flex-col gap-4">
+                <div className={studioTab === "visual" ? "flex flex-col gap-4 xl:col-span-7" : "hidden xl:flex xl:col-span-7 flex-col gap-4"}>
                   <RiemannVisualizer
                     samples={activeSamples}
                     sampleRate={currentTrack?.sampleRate || 44100}
@@ -451,15 +481,20 @@ export function App() {
                     isBeatHit={beatState.isBeat}
                     activeStemLabel={activeStemKey}
                   />
-                  <BeatDetectorPanel
-                    beatState={beatState}
-                    sensitivityC={sensitivityC}
-                    setSensitivityC={setSensitivityC}
-                  />
-                  <IntegrationMetricsTable metrics={currentMetrics} />
+                  <div className={studioTab === "beats" ? "contents xl:contents" : "hidden xl:block"}>
+                    <BeatDetectorPanel
+                      beatState={beatState}
+                      sensitivityC={sensitivityC}
+                      setSensitivityC={setSensitivityC}
+                    />
+                  </div>
+                  <div className={studioTab === "integrasi" ? "contents xl:contents" : "hidden xl:block"}>
+                    <IntegrationMetricsTable metrics={currentMetrics} />
+                  </div>
                 </div>
 
-                <div className="xl:col-span-5">
+                {/* Mixer inline: hanya desktop */}
+                <div className="hidden xl:block xl:col-span-5">
                   <StemMixer
                     availableKeys={currentTrack ? (Object.keys(currentTrack.stems).filter((k) => k !== "master") as StemKey[]) : ["drums", "bass", "vocals", "other"]}
                     trackConfigs={trackConfigs}
@@ -484,7 +519,7 @@ export function App() {
             <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
               Tempel link lagu atau playlist dari Spotify (Share → Copy Link). Playlist diproses berurutan, yang selesai langsung masuk Pustaka.
-              Server akan meminjam audio via resolver lalu memisahkan 6 stem dengan AI.
+              Server akan meminjam audio via resolver lalu memisahkan 6 stem.
               Berlangsung 1–5 menit tergantung durasi lagu.
             </p>
             <input
@@ -526,6 +561,79 @@ export function App() {
                 Proses Lagu
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FAB buka mixer (mobile/tablet) */}
+      {activeView === "studio" && currentTrack && (
+        <button
+          onClick={() => setShowMixerSheet(true)}
+          className="xl:hidden fixed right-4 bottom-20 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
+        >
+          <IconAdjustmentsHorizontal className="size-5" />
+          Mixer
+        </button>
+      )}
+
+      {/* Bottom sheet mixer (mobile/tablet) */}
+      {showMixerSheet && (
+        <div className="xl:hidden fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setShowMixerSheet(false)}>
+          <div
+            className="w-full rounded-t-2xl bg-[#121212] border-t border-white/10 p-4 pb-24 max-h-[75vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#535353]" />
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-bold text-white">Stem Mixer</span>
+              <button onClick={() => setShowMixerSheet(false)} className="text-xs font-bold text-[#a7a7a7] hover:text-white cursor-pointer">
+                Tutup
+              </button>
+            </div>
+            {currentTrack ? (
+              <StemMixer
+                availableKeys={currentTrack ? (Object.keys(currentTrack.stems).filter((k) => k !== "master") as StemKey[]) : ["drums", "bass", "vocals", "other"]}
+                trackConfigs={trackConfigs}
+                activeStemKey={activeStemKey}
+                setActiveStemKey={setActiveStemKey}
+                onVolumeChange={handleVolumeChange}
+                onToggleMute={handleToggleMute}
+                onToggleSolo={handleToggleSolo}
+                stemEnergies={stemEnergies}
+              />
+            ) : (
+              <p className="text-sm text-[#a7a7a7]">Pilih lagu dulu di Pustaka.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Drawer sidebar (mobile/tablet) */}
+      {showMobileNav && (
+        <div className="md:hidden fixed inset-0 z-40 flex bg-black/70" onClick={() => setShowMobileNav(false)}>
+          <div
+            className="w-[300px] max-w-[85vw] h-full bg-[#121212] p-2 overflow-y-auto border-r border-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-2 py-2 mb-1 md:hidden">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#a7a7a7]">Menu</span>
+              <button onClick={() => setShowMobileNav(false)} className="size-8 rounded-full bg-[#282828] flex items-center justify-center cursor-pointer">
+                <IconX className="size-4 text-white" />
+              </button>
+            </div>
+            <Sidebar
+              activeView={activeView}
+              onSelectView={(v) => { setActiveView(v); setShowMobileNav(false); }}
+              currentTrack={currentTrack}
+              library={library}
+              onSelectLibrary={(song) => { handleSelectLibrary(song); setShowMobileNav(false); }}
+              onDeleteLibrary={handleDeleteLibrary}
+              loadingLibrarySong={loadingLibrarySongId}
+              onFileUpload={(file) => { handleFileUpload(file); setShowMobileNav(false); }}
+              isProcessing={isProcessing}
+              onOpenSpotify={() => { setShowMobileNav(false); setShowSpotifyModal(true); setSpotifyStatus(""); }}
+              hasSpotifyJob={hasSpotifyJob}
+            />
           </div>
         </div>
       )}
