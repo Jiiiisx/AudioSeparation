@@ -2,5 +2,5 @@ numpy>=1.26.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
 requests>=2.31.0
-yt-dlp>=2024.8.6
+yt-dlp[default]>=2026.10.21
 demucs[mp3]>=4.0.1
