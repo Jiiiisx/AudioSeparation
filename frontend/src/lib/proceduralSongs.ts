@@ -7,6 +7,7 @@
 export interface TrackStemData {
   name: string;
   artist: string;
+  cover?: string;
   genre: string;
   bpm: number;
   duration: number;

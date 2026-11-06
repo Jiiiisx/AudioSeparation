@@ -12,6 +12,7 @@ interface JobResponse {
   title?: string;
   artist?: string;
   stems?: Record<string, string>;
+  cover?: string | null;
 }
 
 export interface LibrarySong {
@@ -21,6 +22,7 @@ export interface LibrarySong {
   artist: string;
   stems: Record<string, string>;
   created_at: string;
+  cover?: string | null;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -31,7 +33,8 @@ async function decodeStemsToTrack(
   stemsMap: Record<string, string>,
   name: string,
   artist: string,
-  onStatus?: (msg: string) => void
+  onStatus?: (msg: string) => void,
+  cover?: string | null
 ): Promise<TrackStemData> {
   const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new AudioCtxClass();
@@ -83,6 +86,7 @@ async function decodeStemsToTrack(
   return {
     name,
     artist,
+    cover: cover ? `${API_BASE}${cover}` : undefined,
     genre: "SPOTIFY",
     bpm: 120,
     duration,
@@ -124,7 +128,7 @@ export async function resolveSpotifyTrack(
   if (!job) throw new Error("Timeout menunggu backend.");
   if (job.status === "error") throw new Error(job.message || "Pemrosesan gagal di server.");
 
-  return decodeStemsToTrack(job.stems!, job.title ?? "Lagu Spotify", job.artist ?? "Resolver", onStatus);
+  return decodeStemsToTrack(job.stems!, job.title ?? "Lagu Spotify", job.artist ?? "Resolver", onStatus, job.cover);
 }
 
 export async function fetchLibrary(): Promise<LibrarySong[]> {
@@ -146,7 +150,7 @@ export async function loadLibrarySong(
   song: LibrarySong,
   onStatus?: (msg: string) => void
 ): Promise<TrackStemData> {
-  return decodeStemsToTrack(song.stems, song.title, song.artist, onStatus);
+  return decodeStemsToTrack(song.stems, song.title, song.artist, onStatus, song.cover);
 }
 
 /* ---------- Playlist (batch antrian di backend) ---------- */

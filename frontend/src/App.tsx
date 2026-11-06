@@ -10,11 +10,9 @@ import {
   IconMenu2,
   IconX,
   IconAdjustmentsHorizontal,
-  IconHome,
-  IconChartHistogram,
     IconMusic,
-  IconSettings2,
-  IconChevronRight,
+    IconPlayerPlayFilled,
+    IconBrandSpotify,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
 import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl } from "./lib/songApi";
@@ -373,67 +371,86 @@ export function App() {
           {activeView === "home" ? (
             /* ---------- BERANDA ---------- */
             <div className="px-4 sm:px-6 pt-4 pb-36">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6">Selamat mendengarkan</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Selamat mendengarkan</h1>
 
-              {/* Empty state: arahkan ke unggah / Spotify */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+              {/* Kartu lagu terakhir + statistik */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-5">
                 <button
                   onClick={() => setActiveView("studio")}
-                  className="p-5 rounded-lg bg-[#181818] hover:bg-[#1a1a1a] transition text-left cursor-pointer"
+                  className="flex items-center gap-4 p-4 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer group"
                 >
-                  <div className="font-bold text-white mb-1">Analisis lagu terakhir</div>
-                  <p className="text-sm text-[#a7a7a7]">
-                    {currentTrack ? `${currentTrack.name} · ${currentTrack.artist}` : "Belum ada lagu. Unggah file atau tautkan lagu Spotify lewat Pustaka di sidebar."}
-                  </p>
+                  {currentTrack?.cover ? (
+                    <img src={currentTrack.cover} alt="" className="size-16 rounded-md object-cover shrink-0" />
+                  ) : (
+                    <div className="size-16 rounded-md bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shrink-0">
+                      <IconMusic className="size-7 text-white/80" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#1ed760]">Belakangan dianalisis</span>
+                    <div className="font-bold text-white truncate">{currentTrack?.name || "Belum ada lagu"}</div>
+                    <p className="text-xs text-[#a7a7a7] truncate">
+                      {currentTrack ? currentTrack.artist : "Unggah file atau tautkan Spotify lewat Pustaka"}
+                    </p>
+                  </div>
+                  <button className="ml-auto size-10 shrink-0 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer" title="Buka Studio">
+                    <IconPlayerPlayFilled className="size-5 text-black fill-black" />
+                  </button>
                 </button>
-                <div className="p-5 rounded-lg bg-[#181818]">
-                  <div className="font-bold text-white mb-1">Lagu tersimpan: {library.length}</div>
-                  <p className="text-sm leading-relaxed text-[#a7a7a7]">
-                    Link Spotify yang pernah diproses otomatis tersimpan dan bisa diputar ulang tanpa memproses ulang.
+
+                <div className="p-4 rounded-lg bg-[#181818]">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-3xl font-bold text-white">{library.length}</span>
+                    <span className="text-sm text-[#a7a7a7]">lagu di pustaka</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-[#a7a7a7]">
+                    Semua lagu Spotify yang pernah diproses tersimpan dan bisa diputar ulang tanpa memproses ulang.
                   </p>
                 </div>
               </div>
 
-              {/* Fitur */}
-              <h2 className="text-2xl font-bold tracking-tight mb-4">Fitur Utama</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Cara pakai: 3 langkah */}
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-4">Cara pakai</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
                   {
-                    icon: <IconSettings2 className="size-6 text-[#1db954]" />,
-                    title: "Stem Mixer 6 Channel",
-                    desc: "Pisahkan drums, bass, vokal, gitar, piano & instru lain. Solo untuk mendengar drum saja, mute untuk karaoke tanpa vokal.",
-                    action: "Buka Studio Analisis",
+                    step: 1,
+                    title: "Tautkan atau unggah lagu",
+                    desc: "Tempel link Spotify (track atau playlist) atau unggah MP3/WAV lokal lewat Pustaka di kiri.",
                   },
                   {
-                    icon: <IconChartHistogram className="size-6 text-[#1db954]" />,
-                    title: "Analisis Kurva Daya",
-                    desc: "Visualisasi balok Riemann fungsi daya P(t) = [f(t)]² dan komparasi 5 metode integrasi numerik secara real-time.",
-                    action: "Buka Studio Analisis",
+                    step: 2,
+                    title: "Pilih lagu di pustaka",
+                    desc: "Backend memisahkan audio jadi 6 stem (drums, bass, vokal, gitar, piano, instru lain). Proses 1-3 menit per lagu.",
                   },
                   {
-                    icon: <IconHome className="size-6 text-[#1db954]" />,
-                    title: "Deteksi Ketukan Bass",
-                    desc: "Sliding window 50 ms dengan ambang adaptif C × E_avg. Setiap hentakan kick ditandai otomatis di timeline.",
-                    action: "Buka Studio Analisis",
+                    step: 3,
+                    title: "Lihat grafik analisis",
+                    desc: "Studio menampilkan kurva daya Riemann, mixer 6 channel, dan tabel integrasi numerik real-time.",
                   },
-                ].map((f) => (
-                  <div key={f.title} className="p-5 rounded-lg bg-[#181818] hover:bg-[#1a1a1a] transition">
-                    <div className="mb-3">{f.icon}</div>
-                    <div className="font-bold text-white mb-1">{f.title}</div>
-                    <p className="text-sm text-[#a7a7a7] mb-3 leading-relaxed">{f.desc}</p>
-                    <button
-                      onClick={() => setActiveView("studio")}
-                      className="text-xs font-bold uppercase tracking-wider text-[#1ed760] hover:text-white flex items-center gap-1 cursor-pointer"
-                    >
-                      {f.action}
-                      <IconChevronRight className="size-4" />
-                    </button>
+                ].map((s) => (
+                  <div key={s.step} className="p-5 rounded-lg bg-[#181818] hover:bg-[#1a1a1a] transition">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="size-9 rounded-full bg-[#1ed760] text-black font-bold flex items-center justify-center text-base">{s.step}</span>
+                      <div className="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent" />
+                    </div>
+                    <div className="font-bold text-white mb-1">{s.title}</div>
+                    <p className="text-sm text-[#a7a7a7] leading-relaxed">{s.desc}</p>
                   </div>
                 ))}
+                <button
+                  onClick={() => setShowSpotifyModal(true)}
+                  className="sm:col-span-3 inline-flex items-center justify-center gap-2 w-full sm:w-fit px-6 py-3 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-[1.03] active:scale-95 transition cursor-pointer"
+                >
+                  <IconBrandSpotify className="size-5" />
+                  Mulai dari link Spotify
+                </button>
               </div>
 
-              <p className="mt-10 text-xs text-[#a7a7a7]/60 text-center">
-                Audio disintesis lokal di browser (Fs = 44.100 Hz) — tidak ada file yang diunggah ke server.
+              <p className="mt-10 text-xs text-[#a7a7a7]/60 text-center max-w-2xl mx-auto leading-relaxed">
+                Studio memisahkan lagu jadi 6 stem, menganalisis energi per balok Riemann dari daya P(t) = [f(t)]  (5 metode integrasi numerik),
+                mendeteksi ketukan bass dengan window 50 ms dan ambang adaptif C x E_avg. Audio disintesis lokal di browser
+                (Fs = 44.100 Hz) — tidak ada file yang diunggah ke server.
               </p>
             </div>
           ) : (

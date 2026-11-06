@@ -56,16 +56,20 @@ def db() -> sqlite3.Connection:
         "id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE, "
         "title TEXT, artist TEXT, job_id TEXT, stems TEXT, created_at TEXT)"
     )
+    try:
+        conn.execute("ALTER TABLE songs ADD COLUMN cover TEXT")
+    except sqlite3.OperationalError:
+        pass  # kolom sudah ada
     return conn
 
 
-def db_save(url: str, title: str, artist: str, job_id: str, stems: dict) -> None:
+def db_save(url: str, title: str, artist: str, job_id: str, stems: dict, cover: str | None = None) -> None:
     try:
         with db() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO songs (url, title, artist, job_id, stems, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (url, title, artist, job_id, json.dumps(stems), datetime.datetime.now().isoformat()),
+                "INSERT OR REPLACE INTO songs (url, title, artist, job_id, stems, created_at, cover) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (url, title, artist, job_id, json.dumps(stems), datetime.datetime.now().isoformat(), cover),
             )
     except Exception:
         pass  # pustaka gagal simpan tidak boleh make job gagal
@@ -132,8 +136,19 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         "no_warnings": True,
         "retries": 2,
     }
+    cover_rel: str | None = None
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([query])
+        try:
+            info = ydl.extract_info(query, download=False)
+            thumb = (info or {}).get("thumbnail")
+            if thumb:
+                res = requests.get(thumb, timeout=10)
+                if res.ok:
+                    (workdir / "cover.jpg").write_bytes(res.content)
+                    cover_rel = f"/static/{job_id}/cover.jpg"
+        except Exception:
+            pass  # cover gagal tidak boleh memblokir pipeline
 
     audio_path = workdir / "source.mp3"
     if not audio_path.exists():
@@ -158,8 +173,8 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
     if len(out) < 6:
         raise RuntimeError("Demucs tidak menghasilkan 4 stem lengkap.")
 
-    set_job(job_id, status="done", title=title, artist=artist, stems=out)
-    db_save(source_url, title, artist, job_id, out)
+    set_job(job_id, status="done", title=title, artist=artist, stems=out, cover=cover_rel)
+    db_save(source_url, title, artist, job_id, out, cover_rel)
 
 
 def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None, known_artist: str | None = None) -> None:
@@ -399,6 +414,7 @@ def library_list():
             "artist": r["artist"],
             "stems": json.loads(r["stems"]),
             "created_at": r["created_at"],
+            "cover": r["cover"],
         }
         for r in rows
         if r["title"]
