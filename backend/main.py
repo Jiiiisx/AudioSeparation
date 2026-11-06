@@ -132,7 +132,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         shutil.copyfile(cookie_src, cookie_file)
         set_job(job_id, message="Memakai cookie resolver...")
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "bestaudio/bestaudio*/best",
         "outtmpl": str(workdir / "source.%(ext)s"),
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
