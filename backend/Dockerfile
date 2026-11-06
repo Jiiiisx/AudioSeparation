@@ -1,7 +1,10 @@
 FROM python:3.10-slim
 WORKDIR /app
 ENV HF_HOME=/app/cache/hf
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg nodejs && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/nsetup.sh && sh /tmp/nsetup.sh && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 COPY main.py .
