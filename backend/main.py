@@ -5,6 +5,7 @@ Stems disimpan sebagai MP3 192kbps agar ringan di-fetch browser (±6 MB / stem).
 """
 import os
 import json
+import pathlib
 import re
 import concurrent.futures
 import shutil
@@ -122,6 +123,10 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
     query = f"{artist} - {title}" if "open.spotify.com" in source_url else source_url
     set_job(job_id, status="downloading", message="Meminjam audio via resolver...")
 
+    # cookies YouTube (Render Secret File "cookies.txt") — dibutuhkan di IP datacenter
+    cookie_file = pathlib.Path("/etc/secrets/cookies.txt")
+    if cookie_file.exists():
+        set_job(job_id, message="Memakai cookie resolver...")
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": str(workdir / "source.%(ext)s"),
@@ -138,6 +143,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         # Render/VPS IP = bot wall YouTube ("Sign in to confirm you're not a bot").
         # Fallback client ekstraktor tanpa login: ios & tv_embedded sering lolos.
         "extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}},
+        **({"cookiefile": str(cookie_file)} if cookie_file.exists() else {}),
     }
     cover_rel: str | None = None
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
