@@ -25,6 +25,34 @@ export interface LibrarySong {
   cover?: string | null;
 }
 
+/* ---------- Riwayat lokal per browser (device) ----------
+   DB server mencadangkan SEMUA lagu yang pernah diproses (cache cepat),
+   tapi daftar yang tampil di UI hanya lagu yang pernah di-link dari
+   browser ini — ditandai lewat localStorage. */
+const LOCAL_HISTORY_KEY = "riemann-local-links";
+
+function readLocalHistory(): string[] {
+  try {
+    return (JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || "[]") as string[]) || [];
+  } catch {
+    return [];
+  }
+}
+
+export function getLocalHistory(): Set<string> {
+  return new Set(readLocalHistory());
+}
+
+/** Tandai sebuah link/query sebagai dimiliki browser ini. */
+export function markLocalLink(url: string): void {
+  if (!url) return;
+  const hist = readLocalHistory();
+  if (!hist.includes(url)) {
+    hist.push(url);
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(hist.slice(-500)));
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -128,6 +156,7 @@ export async function resolveSpotifyTrack(
   if (!job) throw new Error("Timeout menunggu backend.");
   if (job.status === "error") throw new Error(job.message || "Pemrosesan gagal di server.");
 
+  markLocalLink(url);
   return decodeStemsToTrack(job.stems!, job.title ?? "Lagu Spotify", job.artist ?? "Resolver", onStatus, job.cover);
 }
 

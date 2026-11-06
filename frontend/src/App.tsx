@@ -15,7 +15,9 @@ import {
     IconBrandSpotify,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl, markLocalLink, getLocalHistory } from "./lib/songApi";
+
+const LOCAL_HISTORY_FLAG = "riemann-history-seeded";
 import type { BatchTrack } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
@@ -66,7 +68,8 @@ export function App() {
   const [showMixerSheet, setShowMixerSheet] = useState<boolean>(false);
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
   const [batchRunning, setBatchRunning] = useState<boolean>(false);
-
+  const [localLinks, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
+  const localLibrary = library.filter((s) => localLinks.has(s.url));
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
   useEffect(() => {
@@ -74,7 +77,14 @@ export function App() {
     engineRef.current = engine;
     engine.onTimeUpdate((time) => setCurrentTime(time));
 
-    fetchLibrary().then(setLibrary).catch(() => {}); // backend mati = pustaka kosong, bukan error
+    fetchLibrary().then((rows) => {
+        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
+          rows.forEach((r) => markLocalLink(r.url));
+          setLocalLinks(getLocalHistory());
+          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
+        }
+        setLibrary(rows);
+      }).catch(() => {}); // backend mati = pustaka kosong, bukan error
 
     return () => {
       engine.stop();
@@ -302,10 +312,26 @@ export function App() {
         const batch = await resolvePlaylist(url, (tracks, done, total) => {
           setBatchTracks(tracks);
           setSpotifyStatus(`Playlist: ${done}/${total} lagu selesai (gagal otomatis dilewati).`);
-          if (done > 0) fetchLibrary().then(setLibrary).catch(() => {});
+          if (done > 0) fetchLibrary().then((rows) => {
+        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
+          rows.forEach((r) => markLocalLink(r.url));
+          setLocalLinks(getLocalHistory());
+          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
+        }
+        setLibrary(rows);
+      }).catch(() => {});
         });
         setSpotifyStatus(`Selesai: ${batch.done}/${batch.total} lagu berhasil. Pustaka diperbarui.`);
-        fetchLibrary().then(setLibrary).catch(() => {});
+        batch.tracks.filter((t) => t.status === "done").forEach((t) => markLocalLink(`${t.artist} - ${t.title}`));
+        setLocalLinks(getLocalHistory());
+        fetchLibrary().then((rows) => {
+        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
+          rows.forEach((r) => markLocalLink(r.url));
+          setLocalLinks(getLocalHistory());
+          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
+        }
+        setLibrary(rows);
+      }).catch(() => {});
       } catch (err: unknown) {
         setSpotifyStatus(err instanceof Error ? `Error: ${err.message}` : "Error memproses playlist.");
       } finally {
@@ -319,6 +345,7 @@ export function App() {
     try {
       const track = await resolveSpotifyTrack(url, (msg) => setSpotifyStatus(msg));
       setSpotifyStatus("Selesai.");
+      setLocalLinks(getLocalHistory());
       setCurrentTrack(track);
       if (engineRef.current) {
         engineRef.current.setTrack(track);
@@ -327,7 +354,14 @@ export function App() {
       }
       setShowSpotifyModal(false);
       setActiveView("studio");
-      fetchLibrary().then(setLibrary).catch(() => {});
+      fetchLibrary().then((rows) => {
+        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
+          rows.forEach((r) => markLocalLink(r.url));
+          setLocalLinks(getLocalHistory());
+          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
+        }
+        setLibrary(rows);
+      }).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memproses link Spotify";
       setSpotifyStatus(`Error: ${msg}`);
@@ -345,7 +379,7 @@ export function App() {
             activeView={activeView}
             onSelectView={setActiveView}
             currentTrack={currentTrack}
-            library={library}
+            library={localLibrary}
             onSelectLibrary={handleSelectLibrary}
             onDeleteLibrary={handleDeleteLibrary}
             loadingLibrarySong={loadingLibrarySongId}
@@ -400,7 +434,7 @@ export function App() {
 
                 <div className="p-4 rounded-lg bg-[#181818]">
                   <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-3xl font-bold text-white">{library.length}</span>
+                    <span className="text-3xl font-bold text-white">{localLibrary.length}</span>
                     <span className="text-sm text-[#a7a7a7]">lagu di pustaka</span>
                   </div>
                   <p className="text-xs leading-relaxed text-[#a7a7a7]">
@@ -663,7 +697,7 @@ export function App() {
               activeView={activeView}
               onSelectView={(v) => { setActiveView(v); setShowMobileNav(false); }}
               currentTrack={currentTrack}
-              library={library}
+              library={localLibrary}
               onSelectLibrary={(song) => { handleSelectLibrary(song); setShowMobileNav(false); }}
               onDeleteLibrary={handleDeleteLibrary}
               loadingLibrarySong={loadingLibrarySongId}
