@@ -124,8 +124,12 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
     set_job(job_id, status="downloading", message="Meminjam audio via resolver...")
 
     # cookies YouTube (Render Secret File "cookies.txt") — dibutuhkan di IP datacenter
-    cookie_file = pathlib.Path("/etc/secrets/cookies.txt")
-    if cookie_file.exists():
+    cookie_src = pathlib.Path("/etc/secrets/cookies.txt")
+    cookie_file = None
+    if cookie_src.exists():
+        # yt-dlp perlu file cookie yang bisa ditulis; /etc/secrets read-only -> salin
+        cookie_file = workdir / "cookies.txt"
+        shutil.copyfile(cookie_src, cookie_file)
         set_job(job_id, message="Memakai cookie resolver...")
     ydl_opts = {
         "format": "bestaudio/best",
@@ -143,7 +147,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         # Render/VPS IP = bot wall YouTube ("Sign in to confirm you're not a bot").
         # Fallback client ekstraktor tanpa login: ios & tv_embedded sering lolos.
         "extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}},
-        **({"cookiefile": str(cookie_file)} if cookie_file.exists() else {}),
+        **({"cookiefile": str(cookie_file)} if cookie_file else {}),
     }
     cover_rel: str | None = None
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
