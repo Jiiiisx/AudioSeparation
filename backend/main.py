@@ -152,18 +152,35 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         **({"cookiefile": str(cookie_file)} if cookie_file else {}),
     }
     cover_rel: str | None = None
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([query])
+    # foku 1: download audio. client dirotor terkait bot wall
+    client_list = ["tv", "web_safari", "ios"] if cookie_file else ["ios", "tv", "mweb"]
+    dl_err = ""
+    for cc in client_list:
+        attempt = dict(ydl_opts)
+        attempt["extractor_args"] = {"youtube": {"player_client": [cc]}}
         try:
-            info = ydl.extract_info(query, download=False)
+            with yt_dlp.YoutubeDL(attempt) as ydl:
+                ydl.download([query])
+            dl_err = ""
+            set_job(job_id, message=f"Audio SIAP (client={cc}), memisahkan 6 stem...")
+            break
+        except yt_dlp.utils.DownloadError as e:
+            dl_err = str(e)[:160]
+            (workdir / "source.mp3").unlink(missing_ok=True)
+    if dl_err:
+        set_job(job_id, status="error", message=f"Resolver gagal: {dl_err}")
+        return
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+            info = ydl2.extract_info(query, download=False)
             thumb = (info or {}).get("thumbnail")
             if thumb:
                 res = requests.get(thumb, timeout=10)
                 if res.ok:
                     (workdir / "cover.jpg").write_bytes(res.content)
                     cover_rel = f"/static/{job_id}/cover.jpg"
-        except Exception:
-            pass  # cover gagal tidak boleh memblokir pipeline
+    except Exception:
+        pass  # cover gagal tidak boleh memblokir pipeline
 
     audio_path = workdir / "source.mp3"
     if not audio_path.exists():
