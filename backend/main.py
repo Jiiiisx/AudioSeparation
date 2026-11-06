@@ -179,6 +179,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
 
 def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None, known_artist: str | None = None) -> None:
     try:
+        source_url = source_url.strip().split("?")[0].rstrip("/")
         bid = _batch_of(job_id)
         if bid and _batch_cancelled(bid):
             set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
@@ -373,7 +374,7 @@ def health():
 
 @app.post("/api/process-track")
 def process_track(req: TrackRequest):
-    url = req.url.strip()
+    url = req.url.strip().split("?")[0].rstrip("/")
     if not url:
         raise HTTPException(400, "URL tidak boleh kosong.")
     cached = db_get(url)
