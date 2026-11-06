@@ -135,6 +135,9 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         "quiet": True,
         "no_warnings": True,
         "retries": 2,
+        # Render/VPS IP = bot wall YouTube ("Sign in to confirm you're not a bot").
+        # Fallback client ekstraktor tanpa login: ios & tv_embedded sering lolos.
+        "extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}},
     }
     cover_rel: str | None = None
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
