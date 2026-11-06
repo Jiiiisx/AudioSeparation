@@ -1,0 +1,12 @@
+# Render Blueprint — backend Riemann Audio Lab
+services:
+  - type: web
+    name: riemann-audio-lab-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    # Free tier: bg/instance sleep saat idle > 15 mnt; storage ephemeral (pustaka cache hilang saat deploy/restart — di-populate ulang otomatis)
+    autoDeploy: true
