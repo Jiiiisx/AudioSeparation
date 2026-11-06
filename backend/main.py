@@ -422,6 +422,45 @@ def library_list():
     ]
 
 
+@app.post("/api/library/retrofill-covers")
+def retrofill_covers():
+    """Isi cover untuk lagu lama yang belum punya — pakai artwork resmi via Spotify oEmbed."""
+    from requests import get as _get
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT id, url, job_id, title FROM songs WHERE (cover IS NULL OR cover = '') AND title IS NOT NULL"
+        ).fetchall()
+    filled, skipped = 0, 0
+    for r in rows:
+        url = r["url"] or ""
+        try:
+            if "open.spotify.com/track/" in url:
+                res = _get("https://open.spotify.com/oembed", params={"url": url}, timeout=10)
+                thumb = (res.json() or {}).get("thumbnail_url") if res.ok else None
+            else:
+                # entri playlist disimpan sebagai "Artist - Title" — cari thumbnail via YouTube info-only
+                yopts = {"quiet": True, "skip_download": True, "default_search": "ytsearch"}
+                with yt_dlp.YoutubeDL(yopts) as ydl:
+                    info = ydl.extract_info(f"ytsearch:{r['title']}", download=False)
+                    thumb = (info.get("entries") or [{}])[0].get("thumbnail")
+            if not thumb:
+                skipped += 1
+                continue
+            img = _get(thumb, timeout=10)
+            if not img.ok:
+                skipped += 1
+                continue
+            job_dir = JOBS_DIR / r["job_id"]
+            job_dir.mkdir(parents=True, exist_ok=True)
+            (job_dir / "cover.jpg").write_bytes(img.content)
+            with db() as conn:
+                conn.execute("UPDATE songs SET cover = ? WHERE id = ?", (f"/static/{r['job_id']}/cover.jpg", r["id"]))
+            filled += 1
+        except Exception:
+            skipped += 1
+    return {"filled": filled, "skipped": skipped}
+
+
 @app.delete("/api/library/{song_id}")
 def library_delete(song_id: int):
     with db() as conn:

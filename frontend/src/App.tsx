@@ -15,9 +15,12 @@ import {
     IconBrandSpotify,
   IconSearch,
   IconTrash,
+  IconLayoutGrid,
+  IconLayoutKanban,
+  IconListSearch,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl, markLocalLink, getLocalHistory } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
 
 const LOCAL_HISTORY_FLAG = "riemann-history-seeded";
 import type { BatchTrack } from "./lib/songApi";
@@ -71,7 +74,122 @@ export function App() {
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
   const [batchRunning, setBatchRunning] = useState<boolean>(false);
   const [localLinks, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
-  const [libraryQuery, setLibraryQuery] = useState("");  const localLibrary = library.filter((s) => localLinks.has(s.url));
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");  const localLibrary = library.filter((s) => localLinks.has(s.url));
+
+  const GridCard = ({ song }: { song: LibrarySong }) => {
+    const isLoading = loadingLibrarySongId === song.id;
+    const active = currentTrack?.name === song.title;
+    return (
+      <button
+        onClick={() => !isLoading && handleSelectLibrary(song)}
+        disabled={isLoading}
+        className="group relative p-3 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer"
+      >
+        <div className="relative mb-2">
+          {song.cover ? (
+            <img src={`${apiBase}${song.cover}`} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />
+          ) : (
+            <div className="aspect-square w-full rounded-md bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
+              <IconBrandSpotify className="size-8 text-white/80" />
+            </div>
+          )}
+          <div className="absolute bottom-1.5 right-1.5 size-9 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition shadow-lg">
+            <IconPlayerPlayFilled className="size-[18px] text-black fill-black" />
+          </div>
+        </div>
+        <div className={`text-sm font-semibold truncate ${active ? "text-[#1ed760]" : "text-white"}`}>{song.title}</div>
+        <div className="text-xs text-[#a7a7a7] truncate">{song.artist}</div>
+        <span
+          role="button"
+          title="Hapus dari pustaka"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteLibrary(song.id);
+          }}
+          className="absolute top-2 right-2 p-1 rounded bg-black/50 opacity-0 group-hover:opacity-100 text-[#a7a7a7] hover:text-red-400 transition cursor-pointer"
+        >
+          <IconTrash className="size-4" />
+        </span>
+      </button>
+    );
+  };
+
+  const CompactCard = ({ song }: { song: LibrarySong }) => {
+    const isLoading = loadingLibrarySongId === song.id;
+    const active = currentTrack?.name === song.title;
+    return (
+      <button
+        onClick={() => !isLoading && handleSelectLibrary(song)}
+        disabled={isLoading}
+        className="group relative aspect-square rounded-md overflow-hidden cursor-pointer"
+        title={`${song.title} · ${song.artist}`}
+      >
+        {song.cover ? (
+          <img src={`${apiBase}${song.cover}`} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
+            <IconBrandSpotify className="size-6 text-white/80" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+          {!isLoading && <IconPlayerPlayFilled className="size-5 text-white" />}
+        </div>
+        {active && <div className="absolute inset-0 ring-2 ring-inset ring-[#1ed760]" />}
+        <span
+          role="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteLibrary(song.id);
+          }}
+          className="absolute top-1 right-1 p-0.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 text-white/80 hover:text-red-400 transition cursor-pointer"
+        >
+          <IconTrash className="size-3.5" />
+        </span>
+      </button>
+    );
+  };
+
+  const ListRow = ({ song, index }: { song: LibrarySong; index: number }) => {
+    const isLoading = loadingLibrarySongId === song.id;
+    const active = currentTrack?.name === song.title;
+    return (
+      <button
+        onClick={() => !isLoading && handleSelectLibrary(song)}
+        disabled={isLoading}
+        className={`group w-full flex items-center gap-3 px-3 py-2 hover:bg-[#1f1f1f] transition text-left cursor-pointer ${active ? "bg-[#1a1a1a]" : ""}`}
+      >
+        <span className="w-5 text-xs text-[#7a7a7a] text-right shrink-0 hidden sm:block">{index}</span>
+        <span className="relative size-10 rounded overflow-hidden shrink-0">
+          {song.cover ? (
+            <img src={`${apiBase}${song.cover}`} alt="" className="w-full h-full object-cover" loading="lazy" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
+              <IconMusic className="size-4 text-white/80" />
+            </div>
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={`block text-sm font-semibold truncate ${active ? "text-[#1ed760]" : "text-white"}`}>{song.title}</span>
+          <span className="block text-xs text-[#a7a7a7] truncate">{song.artist}</span>
+        </span>
+        <span className="hidden group-hover:block text-[#1ed760] shrink-0 w-5 text-center">
+          {isLoading ? "..." : <IconPlayerPlayFilled className="size-4" />}
+        </span>
+        <span
+          role="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteLibrary(song.id);
+          }}
+          className="p-1 rounded opacity-0 group-hover:opacity-100 text-[#a7a7a7] hover:text-red-400 transition cursor-pointer"
+        >
+          <IconTrash className="size-4" />
+        </span>
+      </button>
+    );
+  };
+
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
   useEffect(() => {
@@ -429,14 +547,28 @@ export function App() {
               {/* Pustaka kamu: pencarian + grid */}
               <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Pustaka kamu ({localLibrary.length})</h2>
-                <div className="relative w-full sm:w-72">
-                  <IconSearch className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#a7a7a7]" />
-                  <input
-                    value={libraryQuery}
-                    onChange={(e) => setLibraryQuery(e.target.value)}
-                    placeholder="Cari lagu atau artis..."
-                    className="w-full rounded-full bg-[#242424] border border-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder:text-[#7a7a7a] outline-none focus:border-[#1ed760]/60 transition"
-                  />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <IconSearch className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#a7a7a7]" />
+                    <input
+                      value={libraryQuery}
+                      onChange={(e) => setLibraryQuery(e.target.value)}
+                      placeholder="Cari lagu atau artis..."
+                      className="w-full rounded-full bg-[#242424] border border-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder:text-[#7a7a7a] outline-none focus:border-[#1ed760]/60 transition"
+                    />
+                  </div>
+                  <div className="flex rounded-full bg-[#242424] border border-white/10 p-0.5 shrink-0">
+                    {([["grid", IconLayoutGrid, "Kotak"], ["compact", IconLayoutKanban, "Kecil"], ["list", IconListSearch, "List"]] as const).map(([mode, Ico, label]) => (
+                      <button
+                        key={mode}
+                        title={`Tampilan ${label}`}
+                        onClick={() => setLibraryView(mode)}
+                        className={`p-1.5 rounded-full transition cursor-pointer ${libraryView === mode ? "bg-[#1ed760] text-black" : "text-[#a7a7a7] hover:text-white"}`}
+                      >
+                        <Ico className="size-4" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -444,59 +576,40 @@ export function App() {
                 <div className="p-6 rounded-lg bg-[#181818] text-sm text-[#a7a7a7]">
                   Belum ada lagu tersimpan. Tautkan lagu Spotify pertamamu — lagu yang sudah diproses muncul di sini.
                 </div>
-              ) : (() => {
-                const q = libraryQuery.trim().toLowerCase();
-                const shown = q
-                  ? localLibrary.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q))
-                  : localLibrary;
-                return shown.length === 0 ? (
-                  <div className="p-6 rounded-lg bg-[#181818] text-sm text-[#a7a7a7]">
-                    Tidak ada hasil untuk "{libraryQuery}".
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {shown.map((song) => {
-                      const isLoading = loadingLibrarySongId === song.id;
-                      return (
-                        <button
-                          key={song.id}
-                          onClick={() => !isLoading && handleSelectLibrary(song)}
-                          className="group relative p-3 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer"
-                          disabled={isLoading}
-                        >
-                          <div className="relative mb-2">
-                            {song.cover ? (
-                              <img src={`http://localhost:8000${song.cover}`} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />
-                            ) : (
-                              <div className="aspect-square w-full rounded-md bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
-                                <IconBrandSpotify className={isLoading ? "size-8 text-white/80 animate-spin" : "size-8 text-white/80"} />
-                              </div>
-                            )}
-                            <div className="absolute bottom-1.5 right-1.5 size-9 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition shadow-lg">
-                              <IconPlayerPlayFilled className="size-[18px] text-black fill-black" />
-                            </div>
-                          </div>
-                          <div className={`text-sm font-semibold truncate ${currentTrack?.name === song.title ? "text-[#1ed760]" : "text-white"}`}>
-                            {song.title}
-                          </div>
-                          <div className="text-xs text-[#a7a7a7] truncate">{song.artist}</div>
-                          <span
-                            role="button"
-                            title="Hapus dari pustaka"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteLibrary(song.id);
-                            }}
-                            className="absolute top-2 right-2 p-1 rounded bg-black/50 opacity-0 group-hover:opacity-100 hover:bg-black text-[#a7a7a7] hover:text-red-400 transition cursor-pointer"
-                          >
-                            <IconTrash className="size-4" />
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              ) : (
+                (() => {
+                  const q = libraryQuery.trim().toLowerCase();
+                  const shown = (q ? localLibrary.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)) : localLibrary);
+                  if (shown.length === 0)
+                    return (
+                      <div className="p-6 rounded-lg bg-[#181818] text-sm text-[#a7a7a7]">
+                        Tidak ada hasil untuk "{libraryQuery}".
+                      </div>
+                    );
+                  if (libraryView === "compact")
+                    return (
+                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                        {shown.map((song) => (
+                          <CompactCard key={song.id} song={song} />
+                        ))}
+                      </div>
+                    );
+                  if (libraryView === "list")
+                    return (
+                      <div className="divide-y divide-white/5 rounded-lg bg-[#181818]">
+                        {shown.map((song, idx) => (
+                          <ListRow key={song.id} song={song} index={idx + 1} />
+                        ))}
+                      </div>
+                    );
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                      {shown.map((song) => (
+                        <GridCard key={song.id} song={song} />
+                      ))}
+                    </div>
+                  );
+                })())}
 
               {/* Cara pakai: 3 langkah */}
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-4">Cara pakai</h2>
