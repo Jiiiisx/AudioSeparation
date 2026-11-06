@@ -19,3 +19,4 @@ backend/cache/stems/
 .vscode/
 .idea/
 *.local
+cookies.txt
