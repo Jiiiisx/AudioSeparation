@@ -147,7 +147,8 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         # Render/VPS IP = bot wall YouTube ("Sign in to confirm you're not a bot").
         # Fallback client ekstraktor tanpa login: ios & tv_embedded sering lolos.
         # tanpa cookie: paksakan klien yang kadang lolos bot wall; dengan cookie: default web lebih stabil
-        **({} if cookie_file else {"extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}}}),
+        # dengan cookie: tv/web_safari (web pola membutuhkan PO Token). tanpa cookie: ios/tv/mweb
+        **({"extractor_args": {"youtube": {"player_client": ["tv", "web_safari"]}} if cookie_file else {"extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}}}}),
         **({"cookiefile": str(cookie_file)} if cookie_file else {}),
     }
     cover_rel: str | None = None
