@@ -8,19 +8,11 @@ import {
   IconLoader2,
   IconBrandSpotify,
   IconLink,
-  IconTrash,
 } from "@tabler/icons-react";
-import type { TrackStemData } from "../lib/proceduralSongs";
-import type { LibrarySong } from "../lib/songApi";
 
 interface SidebarProps {
   activeView: "home" | "studio";
   onSelectView: (v: "home" | "studio") => void;
-  currentTrack: TrackStemData | null;
-  library: LibrarySong[];
-  onSelectLibrary: (song: LibrarySong) => void;
-  onDeleteLibrary: (id: number) => void;
-  loadingLibrarySong: number | null;
   onFileUpload: (file: File) => void;
   isProcessing: boolean;
   onOpenSpotify: () => void;
@@ -31,11 +23,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   onSelectView,
-  currentTrack,
-  library,
-  onSelectLibrary,
-  onDeleteLibrary,
-  loadingLibrarySong,
   onFileUpload,
   isProcessing,
   onOpenSpotify,
@@ -77,45 +64,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="bg-[#121212] rounded-lg flex-1 min-h-0 flex flex-col">
-        <div className="px-4 pt-3 pb-2 font-bold text-[#a7a7a7]">Pustaka Kamu</div>
+        <div className="px-4 pt-3 pb-2 font-bold text-[#a7a7a7] flex items-center justify-between">
+          <span>Pustaka</span>
+          <button onClick={onOpenSpotify} className="text-[10px] font-bold uppercase tracking-wider text-[#1ed760] hover:text-white transition cursor-pointer">
+            Taautkan
+          </button>
+        </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-          {library.map((song) => {
-            const isCurrent = currentTrack?.name === song.title;
-            const isLoading = loadingLibrarySong === song.id;
-            return (
-              <div
-                key={song.id}
-                onClick={() => !isLoading && onSelectLibrary(song)}
-                className={`w-full flex items-center gap-3 p-2 rounded-md transition text-left ${
-                  isLoading ? "opacity-60" : "cursor-pointer hover:bg-[#1a1a1a]"
-                } ${isCurrent ? "bg-[#1a1a1a]" : ""}`}
-              >
-                <div className="size-11 rounded bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center shrink-0">
-                  {isLoading
-                    ? <IconLoader2 className="size-5 text-white/80 animate-spin" />
-                    : <IconBrandSpotify className="size-5 text-white/80" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-semibold truncate ${isCurrent ? "text-[#1ed760]" : "text-white"}`}>
-                    {song.title}
-                  </div>
-                  <div className="text-xs text-[#a7a7a7] truncate">{song.artist}</div>
-                </div>
-                <button
-                  title="Hapus dari pustaka"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteLibrary(song.id);
-                  }}
-                  className="p-1 rounded hover:bg-[#333] text-[#a7a7a7] hover:text-white transition shrink-0 cursor-pointer"
-                >
-                  <IconTrash className="size-4" />
-                </button>
-              </div>
-            );
-          })}
-
+        <div className="px-2 pb-2 space-y-1">
           <input
             ref={fileInputRef}
             type="file"
@@ -133,10 +89,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             disabled={isProcessing}
             className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-[#1a1a1a] transition text-left disabled:opacity-50 cursor-pointer"
           >
-            <div className="size-11 rounded bg-[#333] flex items-center justify-center shrink-0">
+            <div className="size-9 rounded bg-[#333] flex items-center justify-center shrink-0">
               {isProcessing
-                ? <IconLoader2 className="size-5 text-[#a7a7a7] animate-spin" />
-                : <IconUpload className="size-5 text-[#a7a7a7]" />}
+                ? <IconLoader2 className="size-4 text-[#a7a7a7] animate-spin" />
+                : <IconUpload className="size-4 text-[#a7a7a7]" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-white truncate">
@@ -150,23 +106,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onOpenSpotify}
             className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-[#1a1a1a] transition text-left cursor-pointer"
           >
-            <div className="size-11 rounded bg-[#333] flex items-center justify-center shrink-0">
-              <IconBrandSpotify className={`size-5 ${hasSpotifyJob ? "text-[#1ed760] animate-pulse" : "text-[#1db954]"}`} />
+            <div className="size-9 rounded bg-[#333] flex items-center justify-center shrink-0">
+              <IconBrandSpotify className={`size-4 ${hasSpotifyJob ? "text-[#1ed760] animate-pulse" : "text-[#1db954]"}`} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-white truncate">
                 {hasSpotifyJob ? "Memproses lagu..." : "Tautkan Spotify"}
               </div>
-              <div className="text-xs text-[#a7a7a7] truncate">Tempel link lagu Spotify</div>
+              <div className="text-xs text-[#a7a7a7] truncate">Tempel link Spotify</div>
             </div>
             <IconLink className="size-4 text-[#a7a7a7]" />
           </button>
 
-          {library.length === 0 && (
-            <div className="px-3 py-4 text-xs text-[#7a7a7a] leading-relaxed">
-              Belum ada lagu tersimpan. Tempel link Spotify — lagu yang sudah diproses otomatis muncul di sini dan bisa diputar ulang tanpa proses ulang.
-            </div>
-          )}
+          <div className="px-2 pt-1 text-xs text-[#7a7a7a] leading-relaxed">
+            Daftar lagu tersimpan ada di <b className="text-[#a7a7a7]">Beranda</b>.
+          </div>
         </div>
       </div>
     </aside>

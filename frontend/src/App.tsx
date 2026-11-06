@@ -13,6 +13,8 @@ import {
     IconMusic,
     IconPlayerPlayFilled,
     IconBrandSpotify,
+  IconSearch,
+  IconTrash,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
 import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl, markLocalLink, getLocalHistory } from "./lib/songApi";
@@ -69,7 +71,7 @@ export function App() {
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
   const [batchRunning, setBatchRunning] = useState<boolean>(false);
   const [localLinks, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
-  const localLibrary = library.filter((s) => localLinks.has(s.url));
+  const [libraryQuery, setLibraryQuery] = useState("");  const localLibrary = library.filter((s) => localLinks.has(s.url));
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
   useEffect(() => {
@@ -378,11 +380,6 @@ export function App() {
           <Sidebar
             activeView={activeView}
             onSelectView={setActiveView}
-            currentTrack={currentTrack}
-            library={localLibrary}
-            onSelectLibrary={handleSelectLibrary}
-            onDeleteLibrary={handleDeleteLibrary}
-            loadingLibrarySong={loadingLibrarySongId}
             onFileUpload={handleFileUpload}
             isProcessing={isProcessing}
             onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); }}
@@ -407,41 +404,99 @@ export function App() {
             <div className="px-4 sm:px-6 pt-4 pb-36">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Selamat mendengarkan</h1>
 
-              {/* Kartu lagu terakhir + statistik */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-5">
-                <button
-                  onClick={() => setActiveView("studio")}
-                  className="flex items-center gap-4 p-4 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer group"
-                >
-                  {currentTrack?.cover ? (
-                    <img src={currentTrack.cover} alt="" className="size-16 rounded-md object-cover shrink-0" />
-                  ) : (
-                    <div className="size-16 rounded-md bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shrink-0">
-                      <IconMusic className="size-7 text-white/80" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#1ed760]">Belakangan dianalisis</span>
-                    <div className="font-bold text-white truncate">{currentTrack?.name || "Belum ada lagu"}</div>
-                    <p className="text-xs text-[#a7a7a7] truncate">
-                      {currentTrack ? currentTrack.artist : "Unggah file atau tautkan Spotify lewat Pustaka"}
-                    </p>
+              {/* Kartu lagu terakhir */}
+              <button
+                onClick={() => setActiveView("studio")}
+                className="flex items-center gap-4 p-4 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer group my-5 w-full sm:w-fit sm:pr-10"
+              >
+                {currentTrack?.cover ? (
+                  <img src={currentTrack.cover} alt="" className="size-16 rounded-md object-cover shrink-0" />
+                ) : (
+                  <div className="size-16 rounded-md bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shrink-0">
+                    <IconMusic className="size-7 text-white/80" />
                   </div>
-                  <button className="ml-auto size-10 shrink-0 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer" title="Buka Studio">
-                    <IconPlayerPlayFilled className="size-5 text-black fill-black" />
-                  </button>
-                </button>
-
-                <div className="p-4 rounded-lg bg-[#181818]">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-3xl font-bold text-white">{localLibrary.length}</span>
-                    <span className="text-sm text-[#a7a7a7]">lagu di pustaka</span>
-                  </div>
-                  <p className="text-xs leading-relaxed text-[#a7a7a7]">
-                    Semua lagu Spotify yang pernah diproses tersimpan dan bisa diputar ulang tanpa memproses ulang.
+                )}
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#1ed760]">Belakangan dianalisis</span>
+                  <div className="font-bold text-white truncate">{currentTrack?.name || "Belum ada lagu"}</div>
+                  <p className="text-xs text-[#a7a7a7] truncate">
+                    {currentTrack ? currentTrack.artist : "Unggah file atau tautkan Spotify lewat Pustaka"}
                   </p>
                 </div>
+                <IconPlayerPlayFilled className="size-6 text-[#1ed760] opacity-0 group-hover:opacity-100 transition shrink-0" />
+              </button>
+
+              {/* Pustaka kamu: pencarian + grid */}
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Pustaka kamu ({localLibrary.length})</h2>
+                <div className="relative w-full sm:w-72">
+                  <IconSearch className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#a7a7a7]" />
+                  <input
+                    value={libraryQuery}
+                    onChange={(e) => setLibraryQuery(e.target.value)}
+                    placeholder="Cari lagu atau artis..."
+                    className="w-full rounded-full bg-[#242424] border border-white/10 pl-9 pr-3 py-2 text-sm text-white placeholder:text-[#7a7a7a] outline-none focus:border-[#1ed760]/60 transition"
+                  />
+                </div>
               </div>
+
+              {localLibrary.length === 0 ? (
+                <div className="p-6 rounded-lg bg-[#181818] text-sm text-[#a7a7a7]">
+                  Belum ada lagu tersimpan. Tautkan lagu Spotify pertamamu — lagu yang sudah diproses muncul di sini.
+                </div>
+              ) : (() => {
+                const q = libraryQuery.trim().toLowerCase();
+                const shown = q
+                  ? localLibrary.filter((s) => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q))
+                  : localLibrary;
+                return shown.length === 0 ? (
+                  <div className="p-6 rounded-lg bg-[#181818] text-sm text-[#a7a7a7]">
+                    Tidak ada hasil untuk "{libraryQuery}".
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {shown.map((song) => {
+                      const isLoading = loadingLibrarySongId === song.id;
+                      return (
+                        <button
+                          key={song.id}
+                          onClick={() => !isLoading && handleSelectLibrary(song)}
+                          className="group relative p-3 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer"
+                          disabled={isLoading}
+                        >
+                          <div className="relative mb-2">
+                            {song.cover ? (
+                              <img src={`http://localhost:8000${song.cover}`} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />
+                            ) : (
+                              <div className="aspect-square w-full rounded-md bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
+                                <IconBrandSpotify className={isLoading ? "size-8 text-white/80 animate-spin" : "size-8 text-white/80"} />
+                              </div>
+                            )}
+                            <div className="absolute bottom-1.5 right-1.5 size-9 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition shadow-lg">
+                              <IconPlayerPlayFilled className="size-[18px] text-black fill-black" />
+                            </div>
+                          </div>
+                          <div className={`text-sm font-semibold truncate ${currentTrack?.name === song.title ? "text-[#1ed760]" : "text-white"}`}>
+                            {song.title}
+                          </div>
+                          <div className="text-xs text-[#a7a7a7] truncate">{song.artist}</div>
+                          <span
+                            role="button"
+                            title="Hapus dari pustaka"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteLibrary(song.id);
+                            }}
+                            className="absolute top-2 right-2 p-1 rounded bg-black/50 opacity-0 group-hover:opacity-100 hover:bg-black text-[#a7a7a7] hover:text-red-400 transition cursor-pointer"
+                          >
+                            <IconTrash className="size-4" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Cara pakai: 3 langkah */}
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-4">Cara pakai</h2>
@@ -696,11 +751,6 @@ export function App() {
             <Sidebar
               activeView={activeView}
               onSelectView={(v) => { setActiveView(v); setShowMobileNav(false); }}
-              currentTrack={currentTrack}
-              library={localLibrary}
-              onSelectLibrary={(song) => { handleSelectLibrary(song); setShowMobileNav(false); }}
-              onDeleteLibrary={handleDeleteLibrary}
-              loadingLibrarySong={loadingLibrarySongId}
               onFileUpload={(file) => { handleFileUpload(file); setShowMobileNav(false); }}
               isProcessing={isProcessing}
               onOpenSpotify={() => { setShowMobileNav(false); setShowSpotifyModal(true); setSpotifyStatus(""); }}
