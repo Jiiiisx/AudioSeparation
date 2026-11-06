@@ -146,7 +146,8 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         "retries": 2,
         # Render/VPS IP = bot wall YouTube ("Sign in to confirm you're not a bot").
         # Fallback client ekstraktor tanpa login: ios & tv_embedded sering lolos.
-        "extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}},
+        # tanpa cookie: paksakan klien yang kadang lolos bot wall; dengan cookie: default web lebih stabil
+        **({} if cookie_file else {"extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}}}),
         **({"cookiefile": str(cookie_file)} if cookie_file else {}),
     }
     cover_rel: str | None = None
