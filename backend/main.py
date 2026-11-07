@@ -178,7 +178,7 @@ def _pick_youtube_track(artist: str, title: str):
         t = _norm(str(c.get("title") or ""))
         s = 0.0
         dur = c.get("duration") or 0
-        if not (60 <= dur <= 360):
+        if not (60 <= dur <= 600):  # 1-10 menit: lagu populer berdurasi panjang pun valid
             s -= 1000.0
         # Anchor durasi sesungguhnya (iTunes): kandidat meleset >6 s dianggap bukan lagu itu
         if anchor is not None:
@@ -209,7 +209,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         set_job(job_id, status="downloading", message="Mencari audio asli lagu...")
         best = _pick_youtube_track(artist, title)
         if best is None:
-            set_job(job_id, status="error", message="Audio lagu tidak ditemukan di YouTube dengan keyakinan tinggi. Coba lagu lain (durasi 1–5 menit).")
+            set_job(job_id, status="error", message="Audio lagu tidak ditemukan di YouTube dengan keyakinan tinggi. Coba lagu lain (durasi 1–10 menit).")
             return
         query = f"https://www.youtube.com/watch?v={best['id']}"
         set_job(job_id, status="downloading", message=f"Audio terverifikasi: {title}")

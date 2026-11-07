@@ -205,7 +205,7 @@ async function pollSpotifyJob(
 
 export async function fetchLibrary(): Promise<LibrarySong[]> {
   const res = await fetch(`${API_BASE}/api/library`);
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Pustaka gagal dimuat (HTTP ${res.status}). Coba muat ulang halaman.`);
   const rows = (await res.json()) as LibrarySong[];
   for (const row of rows) {
     row.stems = typeof row.stems === "string" ? JSON.parse(row.stems) : row.stems;
