@@ -231,7 +231,17 @@ def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None
         else:
             title, artist = resolve_metadata(source_url)
         set_job(job_id, status="queued", title=title, artist=artist, message="Antrian...")
-        _pipeline_core(job_id, source_url, title, artist)
+        # Gerbang: Resolver boleh paralel, tapi Demucs (butuh RAM besar)
+        # HARUS serial — job berikutnya otomatis menunggu di sini.
+        PIPELINE_SEM.acquire()
+        try:
+            if bid and _batch_cancelled(bid):
+                set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
+                return
+            set_job(job_id, message="Selesai antri, mulai proses...")
+            _pipeline_core(job_id, source_url, title, artist)
+        finally:
+            PIPELINE_SEM.release()
     except subprocess.CalledProcessError as e:
         err = e.stderr.decode("utf-8", errors="ignore")[-400:] if e.stderr else str(e)
         set_job(job_id, status="error", message=f"Demucs gagal: {err}")
@@ -278,6 +288,10 @@ def _sp_embed_tracks(kind: str, list_id: str) -> list[dict]:
 
 MAX_PLAYLIST = 50
 MAX_WORKERS = int(os.environ.get("RIEMANN_MAX_WORKERS", "2"))
+
+# Ponytail: Demucs (6-stem) butuh 2.5-3 GB RAM; hanya BOLEH 1 proses paralel
+# default. Naikkan lewat env RIEMANN_MAX_CONCURRENCY jika RAM diizinkan.
+PIPELINE_SEM = threading.BoundedSemaphore(int(os.environ.get("RIEMANN_MAX_CONCURRENCY", "1")))
 
 # Registry eksekusi batch agar bisa dihentikan: batch_id -> {"pool": ..., "cancelled": bool}
 BATCH_RUNS: dict[str, dict] = {}
