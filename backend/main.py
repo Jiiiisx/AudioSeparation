@@ -197,12 +197,24 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         raise RuntimeError("File audio hasil resolver tidak ditemukan.")
 
     set_job(job_id, status="separating", message="Memisahkan 6 stem (0,5–3 menit)...")
-    subprocess.run(
-        ["demucs", "-n", "htdemucs_6s", "--mp3", "--mp3-bitrate", "192", "-o", str(workdir), str(audio_path)],
-        check=True,
-        timeout=900,
-        capture_output=True,
-    )
+    if job_id in CANCELLED:
+        set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
+        return
+    cmd = ["demucs", "-n", "htdemucs_6s", "--mp3", "--mp3-bitrate", "192", "-o", str(workdir), str(audio_path)]
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    with JOBS_LOCK:
+        RUNNING_PROCS[job_id] = proc
+    try:
+        _, errb = proc.communicate(timeout=900)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        raise RuntimeError("Demucs timeout (15 menit).")
+    finally:
+        with JOBS_LOCK:
+            RUNNING_PROCS.pop(job_id, None)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, stderr=errb)
 
     model_dir = workdir / "htdemucs_6s" / audio_path.stem
     out = {}
@@ -222,6 +234,9 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
 def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None, known_artist: str | None = None) -> None:
     try:
         source_url = source_url.strip().split("?")[0].rstrip("/")
+        if job_id in CANCELLED:
+            set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
+            return
         bid = _batch_of(job_id)
         if bid and _batch_cancelled(bid):
             set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
@@ -292,6 +307,9 @@ MAX_WORKERS = int(os.environ.get("RIEMANN_MAX_WORKERS", "2"))
 # Ponytail: Demucs (6-stem) butuh 2.5-3 GB RAM; hanya BOLEH 1 proses paralel
 # default. Naikkan lewat env RIEMANN_MAX_CONCURRENCY jika RAM diizinkan.
 PIPELINE_SEM = threading.BoundedSemaphore(int(os.environ.get("RIEMANN_MAX_CONCURRENCY", "1")))
+# Proses Demucs yang sedang berjalan per job (untuk cancel jog yang mematikan).
+RUNNING_PROCS: dict[str, subprocess.Popen] = {}
+CANCELLED: set[str] = set()
 
 # Registry eksekusi batch agar bisa dihentikan: batch_id -> {"pool": ..., "cancelled": bool}
 BATCH_RUNS: dict[str, dict] = {}
@@ -426,6 +444,20 @@ def batch_status(batch_id: str):
 @app.get("/api/health")
 def health():
     return {"status": "online", "jobs_active": sum(1 for j in JOBS.values() if j.get("status") not in ("done", "error"))}
+
+
+@app.post("/api/job/{job_id}/cancel")
+def cancel_job(job_id: str):
+    CANCELLED.add(job_id)
+    with JOBS_LOCK:
+        job = JOBS.get(job_id, {})
+        done = (job.get("status") or "") in ("done", "error")
+    proc = RUNNING_PROCS.get(job_id)
+    if proc is not None and proc.poll() is None:
+        proc.kill()
+    if not done:
+        set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
+    return {"ok": True}
 
 
 @app.post("/api/process-track")

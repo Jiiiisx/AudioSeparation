@@ -20,7 +20,7 @@ import {
   IconListSearch,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
 
 const LOCAL_HISTORY_FLAG = "riemann-history-seeded";
 import type { LibrarySong } from "./lib/songApi";
@@ -462,6 +462,20 @@ export function App() {
     }
   };
 
+  const closeSpotifyModal = async () => {
+    if (spotifyBusy) {
+      const ok = window.confirm(
+        "Proses tautan masih berjalan.\n\nMenutup sekarang akan MENGHENTIKAN proses tautan di server. Lanjutkan?"
+      );
+      if (!ok) return;
+      await cancelSpotifyJob();
+      setSpotifyStatus("");
+      setSpotifyProgress(0);
+      setSpotifyBusy(false);
+    }
+    setShowSpotifyModal(false);
+  };
+
   const trackConfigs = engineRef.current ? engineRef.current.getTrackConfigs() : new Map();
   const duration = currentTrack?.duration || 0;
 
@@ -709,7 +723,7 @@ export function App() {
 
       {/* Modal: Tautkan Spotify */}
       {showSpotifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setShowSpotifyModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={closeSpotifyModal}>
           <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
@@ -743,10 +757,10 @@ export function App() {
             )}
             <div className="mt-5 flex justify-end gap-3">
               <button
-                onClick={() => setShowSpotifyModal(false)}
+                onClick={closeSpotifyModal}
                 className="px-4 py-2 rounded-full bg-transparent text-sm font-bold text-[#a7a7a7] hover:text-white cursor-pointer"
               >
-                Tutup
+                {spotifyBusy ? "Tutup & Hentikan" : "Tutup"}
               </button>
               <button
                 onClick={handleResolveSpotify}

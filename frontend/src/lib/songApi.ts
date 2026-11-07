@@ -142,6 +142,30 @@ export async function resolveSpotifyTrack(
     throw new Error("Backend tidak merespons. Server masih tidur (free tier) atau sedang blocked.");
   }
   const { job_id } = (await startRes.json()) as { job_id: string };
+  spotifyJob.id = job_id;
+  try {
+    return await pollSpotifyJob(job_id, onStatus, url);
+  } finally {
+    spotifyJob.id = null;
+  }
+}
+
+/** id job Spotify yang sedang aktif di tab ini (dipakai tombol Tutup utk cancel). */
+export const spotifyJob: { id: string | null } = { id: null };
+
+/** Minta backend menghentikan job tautan yang sedang berjalan. */
+export async function cancelSpotifyJob(): Promise<void> {
+  const id = spotifyJob.id;
+  if (!id) return;
+  spotifyJob.id = null;
+  await fetch(`${API_BASE}/api/job/${id}/cancel`, { method: "POST" }).catch(() => {});
+}
+
+async function pollSpotifyJob(
+  job_id: string,
+  onStatus?: (msg: string, pct?: number) => void,
+  url?: string
+): Promise<TrackStemData> {
 
   // Polling selama max 10 menit (6-stem lebih lambat dari 4-stem)
   let job: JobResponse | null = null;
