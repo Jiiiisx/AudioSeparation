@@ -74,7 +74,7 @@ export function App() {
   const [showMobileNav, setShowMobileNav] = useState<boolean>(false);
   const [showMixerSheet, setShowMixerSheet] = useState<boolean>(false);
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
-  const [localLinks, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
+  const [, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
 
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");
