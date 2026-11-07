@@ -17,6 +17,7 @@ interface PlayerBarProps {
   duration: number;
   trackName: string;
   artist: string;
+  cover?: string | null;
   masterVolume: number;
   isMasterMuted: boolean;
   onPlayPause: () => void;
@@ -39,6 +40,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
   duration,
   trackName,
   artist,
+  cover,
   masterVolume,
   isMasterMuted,
   onPlayPause,
@@ -53,9 +55,13 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
     <footer className="h-[72px] shrink-0 bg-black flex items-center justify-between gap-4 px-4">
       {/* Kiri: info track */}
       <div className="flex items-center gap-3 w-[30%] min-w-0">
-        <div className="size-14 rounded-md bg-gradient-to-br from-[#1db954]/60 to-[#191414] flex items-center justify-center shrink-0">
-          <IconMusic className="size-6 text-white/80" />
-        </div>
+        {cover ? (
+          <img src={cover} alt="" className="size-14 rounded-md object-cover shrink-0" />
+        ) : (
+          <div className="size-14 rounded-md bg-gradient-to-br from-[#1db954]/60 to-[#191414] flex items-center justify-center shrink-0">
+            <IconMusic className="size-6 text-white/80" />
+          </div>
+        )}
         <div className="min-w-0">
           <div className="text-sm font-semibold text-white truncate">{trackName}</div>
           <div className="text-xs text-[#a7a7a7] truncate">{artist}</div>

@@ -652,14 +652,18 @@ export function App() {
             /* ---------- STUDIO ANALISIS ---------- */
             <div className="px-4 sm:px-6 pt-4 pb-36">
               <div className="flex items-end gap-3 sm:gap-5 mb-4 sm:mb-6">
-                <div className="size-20 sm:size-28 shrink-0 rounded-lg bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shadow-xl">
-                  <IconMusic className="size-8 sm:size-12 text-white/80" />
-                </div>
+                {currentTrack?.cover ? (
+                  <img src={currentTrack.cover} alt="" className="size-20 sm:size-28 shrink-0 rounded-lg object-cover shadow-xl" />
+                ) : (
+                  <div className="size-20 sm:size-28 shrink-0 rounded-lg bg-gradient-to-br from-[#1db954] to-[#191414] flex items-center justify-center shadow-xl">
+                    <IconMusic className="size-8 sm:size-12 text-white/80" />
+                  </div>
+                )}
                 <div className="min-w-0">
                   <span className="text-xs font-bold uppercase tracking-widest text-[#1ed760]">Track</span>
                   <h1 className="text-2xl sm:text-4xl font-bold tracking-tight truncate">{currentTrack?.name || "Tidak ada track"}</h1>
                   <p className="text-sm text-[#a7a7a7] mt-1">
-                    {currentTrack?.artist} · {currentTrack?.bpm} BPM · Fs 44.100 Hz · {currentTrack?.genre}
+                    {currentTrack?.artist} · Fs 44.100 Hz · {currentTrack?.genre}
                   </p>
                 </div>
               </div>
@@ -885,6 +889,7 @@ export function App() {
         duration={duration}
         trackName={currentTrack?.name || "Tidak ada track"}
         artist={currentTrack?.artist || "-"}
+        cover={currentTrack?.cover}
         masterVolume={masterVolume}
         isMasterMuted={isMasterMuted}
         onPlayPause={handlePlayPause}
