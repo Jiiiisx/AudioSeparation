@@ -124,9 +124,16 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
     set_job(job_id, status="downloading", message="Meminjam audio via resolver...")
 
     # cookies YouTube (Render Secret File "cookies.txt") — dibutuhkan di IP datacenter
+    # Render Secret File (file) ATAU env secret (HF Space) berisi Netscape cookies
+    import os as _os
+    cookie_txt = _os.environ.get("RIEMANN_YT_COOKIES", "")
     cookie_src = pathlib.Path("/etc/secrets/cookies.txt")
     cookie_file = None
-    if cookie_src.exists():
+    if cookie_txt:
+        cookie_file = workdir / "cookies.txt"
+        cookie_file.write_text(cookie_txt, encoding="utf-8")
+        set_job(job_id, message="Memakai cookie resolver...")
+    elif cookie_src.exists():
         # yt-dlp perlu file cookie yang bisa ditulis; /etc/secrets read-only -> salin
         cookie_file = workdir / "cookies.txt"
         shutil.copyfile(cookie_src, cookie_file)
@@ -155,12 +162,13 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
     }
     cover_rel: str | None = None
     # foku 1: download audio. client dirotor terkait bot wall
-    client_list = ["tv", "web_safari", "ios"] if cookie_file else ["ios", "tv", "mweb"]
+    client_list = ["web_safari", "mweb", "tv", "ios"] if cookie_file else ["mweb", "ios", "tv"]
     dl_err = ""
     for cc in client_list:
         attempt = dict(ydl_opts)
         attempt["extractor_args"] = {"youtube": {"player_client": [cc]}}
         try:
+            set_job(job_id, message=f"Resolver client={cc}...")
             with yt_dlp.YoutubeDL(attempt) as ydl:
                 ydl.download([query])
             dl_err = ""
