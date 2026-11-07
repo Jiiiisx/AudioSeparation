@@ -164,7 +164,7 @@ export async function cancelSpotifyJob(): Promise<void> {
 async function pollSpotifyJob(
   job_id: string,
   onStatus?: (msg: string, pct?: number) => void,
-  url?: string
+  url = ""
 ): Promise<TrackStemData> {
 
   // Polling selama max 10 menit (6-stem lebih lambat dari 4-stem)
