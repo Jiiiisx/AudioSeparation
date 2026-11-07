@@ -206,7 +206,29 @@ export function App() {
           localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
         }
         setLibrary(rows);
-      }).catch(() => {}); // backend mati = pustaka kosong, bukan error
+        try { localStorage.setItem("riemann-library-cache", JSON.stringify(rows)); } catch { /* penuh = skip */ }
+        // Pulihkan lagu terakhir yang dibuka (refresh tidak kembali ke beranda)
+        const lastUrl = localStorage.getItem("riemann-last-track");
+        const song = lastUrl ? rows.find((r) => r.url === lastUrl) : undefined;
+        if (song) {
+          setLoadingLibrarySongId(song.id);
+          loadLibrarySong(song)
+            .then((track) => {
+              setCurrentTrack(track);
+              setActiveStemKey("master");
+              if (engineRef.current) engineRef.current.setTrack(track);
+              setActiveView("studio");
+            })
+            .catch(() => {})
+            .finally(() => setLoadingLibrarySongId(null));
+        }
+      }).catch(() => {
+        // Backend mati/blokir: tampilkan cache pustaka lokal biar tak kosong
+        try {
+          const cached = JSON.parse(localStorage.getItem("riemann-library-cache") || "[]") as typeof library;
+          if (cached.length) setLibrary(cached);
+        } catch { /* cache rusak = kosong */ }
+      });
 
     return () => {
       engine.stop();
@@ -342,6 +364,7 @@ export function App() {
     setLoadingLibrarySongId(song.id);
     try {
       const track = await loadLibrarySong(song);
+      localStorage.setItem("riemann-last-track", song.url);
       setCurrentTrack(track);
       setActiveStemKey("master");
       if (engineRef.current) {
@@ -439,6 +462,7 @@ export function App() {
       });
       setSpotifyStatus("Selesai.");
       setLocalLinks(getLocalHistory());
+      localStorage.setItem("riemann-last-track", url);
       setCurrentTrack(track);
       if (engineRef.current) {
         engineRef.current.setTrack(track);

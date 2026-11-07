@@ -40,6 +40,7 @@ allowed = [o for o in os.environ.get("CLIENT_ORIGINS", "*").split(",") if o]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed,
+    allow_origin_regex=r"https://audio-separation-[a-z0-9-]+\.vercel\.app",  # semua domain preview Vercel project ini
     allow_methods=["*"],
     allow_headers=["*"],
 )
