@@ -122,10 +122,58 @@ def resolve_metadata(url: str) -> tuple[str, str]:
     return url[-40:], "Resolver"
 
 
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9 ]", "", (s or "").lower())
+
+
+def _pick_youtube_track(artist: str, title: str) -> dict | None:
+    """Pilih video YouTube yang BENAR-BENAR lagunya, bukan podcast/cover/live.
+    Gate keras: durasi 60-360 s (sesuai janji UI 1-5 menit) + skor kata judul/artis."""
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
+            info = ydl.extract_info(f"ytsearch10:{artist} - {title}", download=False)
+        entries = [e for e in ((info or {}).get("entries") or []) if e]
+    except Exception:
+        return None
+    if not entries:
+        return None
+    t_n, a_n = _norm(title), _norm(artist)
+    words = [w for w in t_n.split() if len(w) > 2]
+    def score(c: dict) -> float:
+        t = _norm(c.get("title"))
+        s = 0.0
+        dur = c.get("duration") or 0
+        if not (60 <= dur <= 360):
+            s -= 1000.0
+        t_low = (c.get("title") or "").lower()
+        for bad in ("live", "cover", "karaoke", "nightcore", "podcast", "instrumental"):
+            if bad in t_low:
+                s -= 500.0
+        for kw in ("official audio", "topic", "official music video", "official lyric"):
+            if kw in t_low:
+                s += 8.0
+        if t_n and (t_n in t or t in t_n):
+            s += 100.0
+        s += 8.0 * sum(1 for w in words if w in t)
+        if a_n and a_n in t:
+            s += 60.0
+        return s
+    best = max(entries, key=score)
+    return best if score(best) > 0 else None
+
+
 def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> None:
     workdir = JOBS_DIR / job_id
     workdir.mkdir(parents=True, exist_ok=True)
-    query = f"{artist} - {title}" if "open.spotify.com" in source_url else source_url
+    query = source_url
+    if "open.spotify.com" in source_url:
+        set_job(job_id, status="downloading", message="Mencari audio asli lagu...")
+        best = _pick_youtube_track(artist, title)
+        if best is None:
+            set_job(job_id, status="error", message="Audio lagu tidak ditemukan di YouTube dengan keyakinan tinggi. Coba lagu lain (durasi 1–5 menit).")
+            return
+        query = f"https://www.youtube.com/watch?v={best['id']}"
+        set_job(job_id, status="downloading", message=f"Audio terverifikasi: {title}")
     set_job(job_id, status="downloading", message="Meminjam audio via resolver...")
 
     # cookies YouTube (Render Secret File "cookies.txt") — dibutuhkan di IP datacenter
