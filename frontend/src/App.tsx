@@ -77,7 +77,8 @@ export function App() {
   const [localLinks, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
 
   const [libraryQuery, setLibraryQuery] = useState("");
-  const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");  const localLibrary = library.filter((s) => localLinks.has(s.url));
+  const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");
+  const [libraryError, setLibraryError] = useState(false);  const localLibrary = library.filter((s) => localLinks.has(s.url));
 
   const GridCard = ({ song }: { song: LibrarySong }) => {
     const isLoading = loadingLibrarySongId === song.id;
@@ -223,7 +224,8 @@ export function App() {
             .finally(() => setLoadingLibrarySongId(null));
         }
       }).catch(() => {
-        // Backend mati/blokir: tampilkan cache pustaka lokal biar tak kosong
+        // Backend mati/blokir: tampilkan cache pustaka lokal biar tak kosong + tandai error
+        setLibraryError(true);
         try {
           const cached = JSON.parse(localStorage.getItem("riemann-library-cache") || "[]") as typeof library;
           if (cached.length) setLibrary(cached);
@@ -564,6 +566,9 @@ export function App() {
               {/* Pustaka kamu: pencarian + grid */}
               <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Pustaka kamu ({localLibrary.length})</h2>
+                {libraryError && (
+                  <p className="text-xs text-[#f04a4a]">Pustaka server gagal dimuat — kemungkinan diblokir browser/shield. Coba muat ulang atau matikan shield.</p>
+                )}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <div className="relative flex-1 sm:w-72">
                     <IconSearch className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#a7a7a7]" />
