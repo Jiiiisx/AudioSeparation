@@ -64,6 +64,9 @@ async function decodeStemsToTrack(
   onStatus?: (msg: string, pct?: number) => void,
   cover?: string | null
 ): Promise<TrackStemData> {
+  if (!stemsMap || !stemsMap.drums) {
+    throw new Error("Data stem tidak lengkap dari server. Coba tautkan ulang lagunya.");
+  }
   const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const ctx = new AudioCtxClass();
 
@@ -194,6 +197,7 @@ async function pollSpotifyJob(
 
   if (!job) throw new Error("Timeout menunggu backend.");
   if (job.status === "error") throw new Error(job.message || "Pemrosesan gagal di server.");
+  if (!job.stems) throw new Error("Job selesai tetapi file stem tidak tersedia di server. Coba proses ulang lagunya.");
 
   markLocalLink(url);
   return decodeStemsToTrack(job.stems!, job.title ?? "Lagu Spotify", job.artist ?? "Resolver", onStatus, job.cover);

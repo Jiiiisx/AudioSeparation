@@ -17,6 +17,11 @@ import datetime
 from pathlib import Path
 from typing import Any
 
+# Cache model HuggingFace Demucs HARUS persist antar rebuild container,
+# kalau tidak setiap deploy direkt download ulang model (~1 GB) lewat
+# request unauthenticated yang kena rate limit HF Hub.
+os.environ.setdefault("HF_HOME", "/app/data/hf")
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -261,7 +266,9 @@ def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None
         finally:
             PIPELINE_SEM.release()
     except subprocess.CalledProcessError as e:
-        err = e.stderr.decode("utf-8", errors="ignore")[-400:] if e.stderr else str(e)
+        raw = e.stderr.decode("utf-8", errors="ignore") if e.stderr else str(e)
+        lines = [ln for ln in raw.splitlines() if ln.strip() and "Warning:" not in ln and "%|" not in ln and "s/it" not in ln and "it/s" not in ln]
+        err = " ".join(lines[-2:]).strip() or f"Demucs keluar dengan kode {e.returncode} (tanpa pesan error)."
         set_job(job_id, status="error", message=f"Demucs gagal: {err}")
     except Exception as e:
         set_job(job_id, status="error", message=str(e))

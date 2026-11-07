@@ -18,6 +18,7 @@ import {
   IconLayoutGrid,
   IconLayoutKanban,
   IconListSearch,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
 import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
@@ -67,6 +68,7 @@ export function App() {
   const [spotifyStatus, setSpotifyStatus] = useState<string>("");
   const [spotifyProgress, setSpotifyProgress] = useState<number>(0);
   const [spotifyBusy, setSpotifyBusy] = useState<boolean>(false);
+  const [showStopConfirm, setShowStopConfirm] = useState<boolean>(false);
   const [library, setLibrary] = useState<LibrarySong[]>([]);
   const [loadingLibrarySongId, setLoadingLibrarySongId] = useState<number | null>(null);
   const [showMobileNav, setShowMobileNav] = useState<boolean>(false);
@@ -462,17 +464,20 @@ export function App() {
     }
   };
 
-  const closeSpotifyModal = async () => {
+  const closeSpotifyModal = () => {
     if (spotifyBusy) {
-      const ok = window.confirm(
-        "Proses tautan masih berjalan.\n\nMenutup sekarang akan MENGHENTIKAN proses tautan di server. Lanjutkan?"
-      );
-      if (!ok) return;
-      await cancelSpotifyJob();
-      setSpotifyStatus("");
-      setSpotifyProgress(0);
-      setSpotifyBusy(false);
+      setShowStopConfirm(true);
+      return;
     }
+    setShowSpotifyModal(false);
+  };
+
+  const confirmStopSpotify = async () => {
+    setShowStopConfirm(false);
+    await cancelSpotifyJob();
+    setSpotifyStatus("");
+    setSpotifyProgress(0);
+    setSpotifyBusy(false);
     setShowSpotifyModal(false);
   };
 
@@ -723,7 +728,7 @@ export function App() {
 
       {/* Modal: Tautkan Spotify */}
       {showSpotifyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={closeSpotifyModal}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
@@ -768,6 +773,38 @@ export function App() {
                 className="px-5 py-2 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-105 transition cursor-pointer disabled:opacity-40 disabled:hover:scale-100"
               >
                 {spotifyBusy ? "Memproses..." : "Proses Lagu"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog konfirmasi hentikan proses */}
+      {showStopConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
+          <div className="w-[400px] max-w-[92vw] rounded-xl bg-[#242424] border border-white/10 p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#f04a4a]/15">
+                <IconAlertTriangle className="size-5 text-[#f04a4a]" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Hentikan proses tautan?</h3>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-[#a7a7a7]">
+              Proses tautan sedang berjalan di server. Menutup sekarang akan{" "}
+              <span className="font-semibold text-white">menghentikan proses</span> dan pekerjaan yang sedang dikerjakan dibatalkan.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowStopConfirm(false)}
+                className="px-4 py-2 rounded-full bg-transparent text-sm font-bold text-[#a7a7a7] hover:text-white cursor-pointer"
+              >
+                Lanjutkan proses
+              </button>
+              <button
+                onClick={confirmStopSpotify}
+                className="px-5 py-2 rounded-full bg-[#f04a4a] text-white text-sm font-bold hover:scale-105 transition cursor-pointer"
+              >
+                Hentikan & Tutup
               </button>
             </div>
           </div>
