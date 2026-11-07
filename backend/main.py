@@ -253,6 +253,9 @@ def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None
             if bid and _batch_cancelled(bid):
                 set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
                 return
+            if job_id in CANCELLED:
+                set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
+                return
             set_job(job_id, message="Selesai antri, mulai proses...")
             _pipeline_core(job_id, source_url, title, artist)
         finally:
