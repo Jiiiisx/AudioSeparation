@@ -78,7 +78,8 @@ export function App() {
 
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");
-  const [libraryError, setLibraryError] = useState(false);  const localLibrary = library.filter((s) => localLinks.has(s.url));
+  const [libraryError, setLibraryError] = useState(false);
+  const localLibrary = library; // tampilkan SEMUA lagu dari backend (filter pencarian terpisah di bawah)
 
   const GridCard = ({ song }: { song: LibrarySong }) => {
     const isLoading = loadingLibrarySongId === song.id;
