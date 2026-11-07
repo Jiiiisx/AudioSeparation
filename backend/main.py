@@ -126,7 +126,7 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", (s or "").lower())
 
 
-def _pick_youtube_track(artist: str, title: str) -> dict | None:
+def _pick_youtube_track(artist: str, title: str):
     """Pilih video YouTube yang BENAR-BENAR lagunya, bukan podcast/cover/live.
     Gate keras: durasi 60-360 s (sesuai janji UI 1-5 menit) + skor kata judul/artis."""
     try:
@@ -139,8 +139,8 @@ def _pick_youtube_track(artist: str, title: str) -> dict | None:
         return None
     t_n, a_n = _norm(title), _norm(artist)
     words = [w for w in t_n.split() if len(w) > 2]
-    def score(c: dict) -> float:
-        t = _norm(c.get("title"))
+    def score(c) -> float:
+        t = _norm(str(c.get("title") or ""))
         s = 0.0
         dur = c.get("duration") or 0
         if not (60 <= dur <= 360):
