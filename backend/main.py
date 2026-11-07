@@ -106,9 +106,19 @@ def set_job(job_id: str, **fields: Any) -> None:
 
 
 def resolve_metadata(url: str) -> tuple[str, str]:
-    """Metadata via Spotify oEmbed resmi (tanpa API key), fallback saat bukan link Spotify."""
-    try:
-        if "open.spotify.com" in url or "spotify:" in url:
+    """Judul + nama artis dari halaman Spotify ("<title>"X - song and lyrics by Y")
+    — oEmbed kerap tidak memberikan artis; tanpa artis, pencarian YouTube
+    menjadi 'Spotify - <judul>' dan hasilnya bisa lagu yang salah."""
+    if "open.spotify.com" in url or "spotify:" in url:
+        try:
+            res = requests.get(url.strip().split("?")[0].rstrip("/"), headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}, timeout=10)
+            if res.ok:
+                m = re.search(r"<title>(.+?) - song and lyrics by (.+?) \| Spotify</title>", res.text)
+                if m:
+                    return m.group(1).strip(), m.group(2).strip()
+        except Exception:
+            pass
+        try:
             res = requests.get("https://open.spotify.com/oembed", params={"url": url}, timeout=8)
             if res.ok:
                 data = res.json()
@@ -117,8 +127,8 @@ def resolve_metadata(url: str) -> tuple[str, str]:
                     a, b = title.split(" by ", 1)
                     return a.strip(), b.strip()
                 return title.strip(), "Spotify"
-    except Exception:
-        pass
+        except Exception:
+            pass
     return url[-40:], "Resolver"
 
 
@@ -249,7 +259,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         attempt = dict(ydl_opts)
         attempt["extractor_args"] = {"youtube": {"player_client": [cc]}}
         try:
-            set_job(job_id, message=f"Resolver client={cc}...")
+            set_job(job_id, message=f"Audio terverifikasi ({title}) — resolver client={cc}...")
             with yt_dlp.YoutubeDL(attempt) as ydl:
                 ydl.download([query])
             dl_err = ""
