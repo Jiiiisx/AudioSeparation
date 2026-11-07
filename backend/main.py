@@ -126,6 +126,29 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", (s or "").lower())
 
 
+def _expected_duration_s(artist: str, title: str) -> float | None:
+    """Durasi eksak lagu dari iTunes Search API (gratis, tanpa API key).
+    Dipakai sebagai anchor supaya kandidat YouTube yang judulnya mirip tapi
+    lagunya beda (durasi meleset) bisa ditolak."""
+    try:
+        req = requests.get(
+            "https://itunes.apple.com/search",
+            params={"term": f"{artist} {title}", "entity": "song", "limit": 10},
+            timeout=8,
+        )
+        for row in (req.json().get("results") or []):
+            name = _norm(str(row.get("trackName") or ""))
+            art = _norm(str(row.get("artistName") or ""))
+            t_n, a_n = _norm(title), _norm(artist)
+            if t_n and (t_n in name or name in t_n) and (not a_n or a_n in art):
+                ms = row.get("trackTimeMillis")
+                if ms:
+                    return int(ms) / 1000.0
+    except Exception:
+        pass
+    return None
+
+
 def _pick_youtube_track(artist: str, title: str):
     """Pilih video YouTube yang BENAR-BENAR lagunya, bukan podcast/cover/live.
     Gate keras: durasi 60-360 s (sesuai janji UI 1-5 menit) + skor kata judul/artis."""
@@ -138,6 +161,7 @@ def _pick_youtube_track(artist: str, title: str):
     if not entries:
         return None
     t_n, a_n = _norm(title), _norm(artist)
+    anchor = _expected_duration_s(artist, title)
     words = [w for w in t_n.split() if len(w) > 2]
     def score(c) -> float:
         t = _norm(str(c.get("title") or ""))
@@ -145,6 +169,10 @@ def _pick_youtube_track(artist: str, title: str):
         dur = c.get("duration") or 0
         if not (60 <= dur <= 360):
             s -= 1000.0
+        # Anchor durasi sesungguhnya (iTunes): kandidat meleset >6 s dianggap bukan lagu itu
+        if anchor is not None:
+            diff = abs(dur - anchor)
+            s += (60.0 - min(diff, 6.0) * 10.0) if diff <= 6.0 else -800.0
         t_low = (c.get("title") or "").lower()
         for bad in ("live", "cover", "karaoke", "nightcore", "podcast", "instrumental"):
             if bad in t_low:
