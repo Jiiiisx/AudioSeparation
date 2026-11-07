@@ -272,14 +272,22 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         set_job(job_id, status="error", message=f"Resolver gagal: {dl_err}")
         return
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-            info = ydl2.extract_info(query, download=False)
-            thumb = (info or {}).get("thumbnail")
-            if thumb:
-                res = requests.get(thumb, timeout=10)
-                if res.ok:
-                    (workdir / "cover.jpg").write_bytes(res.content)
-                    cover_rel = f"/static/{job_id}/cover.jpg"
+        # Artwork resmi dari Spotify oEmbed; fallback thumbnail YouTube
+        thumb = None
+        try:
+            res = requests.get("https://open.spotify.com/oembed", params={"url": source_url}, timeout=8)
+            if res.ok:
+                thumb = res.json().get("thumbnail_url")
+        except Exception:
+            pass
+        if not thumb:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+                thumb = (ydl2.extract_info(query, download=False) or {}).get("thumbnail")
+        if thumb:
+            res = requests.get(thumb, timeout=10)
+            if res.ok and res.content:
+                (workdir / "cover.jpg").write_bytes(res.content)
+                cover_rel = f"/static/{job_id}/cover.jpg"
     except Exception:
         pass  # cover gagal tidak boleh memblokir pipeline
 
