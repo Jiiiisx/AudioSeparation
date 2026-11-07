@@ -20,10 +20,9 @@ import {
   IconListSearch,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, isPlaylistUrl, resolvePlaylist, cancelBatch, batchControl, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
 
 const LOCAL_HISTORY_FLAG = "riemann-history-seeded";
-import type { BatchTrack } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
@@ -66,14 +65,15 @@ export function App() {
   const [showSpotifyModal, setShowSpotifyModal] = useState<boolean>(false);
   const [spotifyUrl, setSpotifyUrl] = useState<string>("");
   const [spotifyStatus, setSpotifyStatus] = useState<string>("");
+  const [spotifyProgress, setSpotifyProgress] = useState<number>(0);
+  const [spotifyBusy, setSpotifyBusy] = useState<boolean>(false);
   const [library, setLibrary] = useState<LibrarySong[]>([]);
   const [loadingLibrarySongId, setLoadingLibrarySongId] = useState<number | null>(null);
-  const [batchTracks, setBatchTracks] = useState<BatchTrack[] | null>(null);
   const [showMobileNav, setShowMobileNav] = useState<boolean>(false);
   const [showMixerSheet, setShowMixerSheet] = useState<boolean>(false);
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
-  const [batchRunning, setBatchRunning] = useState<boolean>(false);
   const [localLinks, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
+
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");  const localLibrary = library.filter((s) => localLinks.has(s.url));
 
@@ -423,47 +423,18 @@ export function App() {
   const handleResolveSpotify = async () => {
     const url = spotifyUrl.trim();
     if (!url) return;
-    if (isPlaylistUrl(url)) {
-      setSpotifyStatus("Membaca playlist...");
-      setBatchTracks([]);
-      setBatchRunning(true);
-      batchControl.cancelRequested = false;
-      try {
-        const batch = await resolvePlaylist(url, (tracks, done, total) => {
-          setBatchTracks(tracks);
-          setSpotifyStatus(`Playlist: ${done}/${total} lagu selesai (gagal otomatis dilewati).`);
-          if (done > 0) fetchLibrary().then((rows) => {
-        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
-          rows.forEach((r) => markLocalLink(r.url));
-          setLocalLinks(getLocalHistory());
-          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
-        }
-        setLibrary(rows);
-      }).catch(() => {});
-        });
-        setSpotifyStatus(`Selesai: ${batch.done}/${batch.total} lagu berhasil. Pustaka diperbarui.`);
-        batch.tracks.filter((t) => t.status === "done").forEach((t) => markLocalLink(`${t.artist} - ${t.title}`));
-        setLocalLinks(getLocalHistory());
-        fetchLibrary().then((rows) => {
-        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
-          rows.forEach((r) => markLocalLink(r.url));
-          setLocalLinks(getLocalHistory());
-          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
-        }
-        setLibrary(rows);
-      }).catch(() => {});
-      } catch (err: unknown) {
-        setSpotifyStatus(err instanceof Error ? `Error: ${err.message}` : "Error memproses playlist.");
-      } finally {
-        setBatchTracks(null);
-        setBatchRunning(false);
-        batchControl.id = null;
-      }
+    if (/open\.spotify\.com\/(playlist|album)\//.test(url)) {
+      setSpotifyStatus("Error: sisakan satu lagu saja — tautkan link /track/, bukan playlist.");
       return;
     }
     setSpotifyStatus("Diterima backend, memulai pipeline...");
+    setSpotifyProgress(0);
+    setSpotifyBusy(true);
     try {
-      const track = await resolveSpotifyTrack(url, (msg) => setSpotifyStatus(msg));
+      const track = await resolveSpotifyTrack(url, (msg, pct) => {
+        setSpotifyStatus(msg);
+        if (typeof pct === "number") setSpotifyProgress(pct);
+      });
       setSpotifyStatus("Selesai.");
       setLocalLinks(getLocalHistory());
       setCurrentTrack(track);
@@ -485,6 +456,9 @@ export function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memproses link Spotify";
       setSpotifyStatus(`Error: ${msg}`);
+    } finally {
+      setSpotifyBusy(false);
+      setSpotifyProgress((p) => (p < 99 ? 0 : 100));
     }
   };
 
@@ -739,8 +713,7 @@ export function App() {
           <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
-              Tempel link lagu atau playlist dari Spotify (Share → Copy Link). Playlist diproses berurutan, yang selesai langsung masuk Pustaka.
-              Server akan meminjam audio via resolver lalu memisahkan 6 stem.
+              Tempel link satu lagu dari Spotify (Share → Copy Link). Server akan meminjam audio via resolver lalu memisahkan 6 stem.
               Berlangsung 1–5 menit tergantung durasi lagu.
             </p>
             <input
@@ -748,32 +721,25 @@ export function App() {
               value={spotifyUrl}
               onChange={(e) => setSpotifyUrl(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleResolveSpotify(); }}
-              placeholder="https://open.spotify.com/track/... atau /playlist/..."
+              placeholder="https://open.spotify.com/track/..."
               className="mt-4 w-full rounded-md bg-[#282828] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1ed760]"
             />
-            {spotifyStatus && (
-              <p className="mt-3 text-xs text-[#1ed760]">{spotifyStatus}</p>
-            )}
-            {batchRunning && (
-              <button
-                onClick={async () => { await cancelBatch(); setSpotifyStatus("Menghentikan antrian..."); }}
-                className="mt-3 w-full rounded-md bg-[#f04a4a]/90 px-3 py-2 text-sm font-bold text-white hover:bg-[#f04a4a] cursor-pointer"
-              >
-                Hentikan pemrosesan playlist
-              </button>
-            )}
-            {batchTracks && (
-              <div className="mt-3 max-h-48 overflow-y-auto rounded-md bg-[#181818] border border-white/10">
-                {batchTracks.map((t) => (
-                  <div key={t.job_id} className="flex items-center gap-2 px-3 py-1.5 text-xs">
-                    <span className={t.status === "error" ? "text-[#f04a4a]" : t.status === "done" ? "text-[#1ed760]" : "text-[#a7a7a7]"}>
-                      {t.status === "done" ? "[selesai]" : t.status === "error" ? "[dilewati]" : "[proses]"}
-                    </span>
-                    <span className="truncate text-white/90">{t.title}</span>
-                    <span className="ml-auto shrink-0 text-[#535353]">{t.artist}</span>
-                  </div>
-                ))}
+            {spotifyStatus && !spotifyStatus.startsWith("Error") && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="text-[#b3b3b3]">{spotifyStatus}</span>
+                  <span className="font-bold text-[#1ed760]">{Math.round(spotifyProgress)}%</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-[#3a3a3a] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#1ed760] transition-[width] duration-700 ease-out"
+                    style={{ width: `${spotifyProgress}%` }}
+                  />
+                </div>
               </div>
+            )}
+            {spotifyStatus.startsWith("Error") && (
+              <p className="mt-3 text-xs text-[#f04a4a]">{spotifyStatus}</p>
             )}
             <div className="mt-5 flex justify-end gap-3">
               <button
@@ -784,24 +750,13 @@ export function App() {
               </button>
               <button
                 onClick={handleResolveSpotify}
-                disabled={!spotifyUrl.trim() || spotifyStatus.includes("Error") === false && spotifyStatus !== ""}
+                disabled={!spotifyUrl.trim() || spotifyBusy || spotifyStatus.startsWith("Error")}
                 className="px-5 py-2 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-105 transition cursor-pointer disabled:opacity-40 disabled:hover:scale-100"
               >
-                Proses Lagu
+                {spotifyBusy ? "Memproses..." : "Proses Lagu"}
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Toast global: playlist diproses sementara modal ditutup */}
-      {batchRunning && !showSpotifyModal && (
-        <div className="fixed top-3 right-3 md:right-4 z-30 flex items-center gap-3 rounded-full bg-[#181818] border border-white/10 px-4 py-2 shadow-xl text-sm">
-          <span className="flex size-2 rounded-full bg-[#1ed760] animate-pulse" />
-          <span className="text-[#d8d8d8]">Playlist diproses di latar belakang</span>
-          <button onClick={() => { setShowSpotifyModal(true); }} className="text-xs font-bold text-[#1ed760] hover:underline cursor-pointer">
-            Buka
-          </button>
         </div>
       )}
 
