@@ -668,6 +668,22 @@ export function App() {
                 </div>
               </div>
 
+              {/* Mixer inline di atas pill tab (ukuran menengah saja) */}
+              <div className="hidden md:block xl:hidden mb-4">
+                {currentTrack && (
+                  <StemMixer
+                    availableKeys={Object.keys(currentTrack.stems).filter((k) => k !== "master") as StemKey[]}
+                    trackConfigs={trackConfigs}
+                    activeStemKey={activeStemKey}
+                    setActiveStemKey={setActiveStemKey}
+                    onVolumeChange={handleVolumeChange}
+                    onToggleMute={handleToggleMute}
+                    onToggleSolo={handleToggleSolo}
+                    stemEnergies={stemEnergies}
+                  />
+                )}
+              </div>
+
               {/* Tab baru (mobile / tablet); desktop pakai tampilan 2 kolom di bawah */}
               <div className="xl:hidden mb-4 flex gap-2 overflow-x-auto pb-1">
                 {([["visual", "Riemann"], ["beats", "Ketukan"], ["integrasi", "Integrasi"]] as const).map(([k, label]) => (
@@ -819,7 +835,7 @@ export function App() {
       {activeView === "studio" && currentTrack && (
         <button
           onClick={() => setShowMixerSheet(true)}
-          className="xl:hidden fixed right-4 bottom-24 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
+          className="md:hidden fixed right-4 bottom-24 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
         >
           <IconAdjustmentsHorizontal className="size-5" />
           Mixer
@@ -828,7 +844,7 @@ export function App() {
 
       {/* Bottom sheet mixer (mobile/tablet) */}
       {showMixerSheet && (
-        <div className="xl:hidden fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setShowMixerSheet(false)}>
+        <div className="md:hidden fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setShowMixerSheet(false)}>
           <div
             className="w-full rounded-t-2xl bg-[#121212] border-t border-white/10 p-4 pb-24 max-h-[75vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
