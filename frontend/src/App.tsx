@@ -24,6 +24,7 @@ import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, 
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
 import { LibraryCard } from "./components/LibraryCard";
+import { MixerSheet } from "./components/MixerSheet";
 import { MiniPlayer } from "./components/MiniPlayer";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
 import { BeatDetectorPanel } from "./components/BeatDetectorPanel";
@@ -838,12 +839,8 @@ export function App() {
 
       {/* Bottom sheet mixer (mobile/tablet) */}
       {showMixerSheet && (
-        <div className="md:hidden fixed inset-0 z-40 flex items-end bg-black/70" onClick={() => setShowMixerSheet(false)}>
-          <div
-            className="w-full rounded-t-2xl bg-[#121212] border-t border-white/10 p-4 pb-24 max-h-[75vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#535353]" />
+        <MixerSheet onClose={() => setShowMixerSheet(false)} mixerContent={
+          <>
             <div className="flex items-center justify-between mb-3">
               <span className="font-bold text-white">Stem Mixer</span>
               <button onClick={() => setShowMixerSheet(false)} className="text-xs font-bold text-[#a7a7a7] hover:text-white cursor-pointer">
@@ -864,8 +861,8 @@ export function App() {
             ) : (
               <p className="text-sm text-[#a7a7a7]">Pilih lagu dulu di Pustaka.</p>
             )}
-          </div>
-        </div>
+          </>
+        } />
       )}
 
       {/* Drawer sidebar (mobile/tablet) */}

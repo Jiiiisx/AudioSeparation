@@ -24,6 +24,9 @@ body {
   font-family: "Inter", "Segoe UI", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   color: var(--text-primary);
+  /* Blokir double-tap & pinch zoom di mobile (meta viewport saja tidak cukup), scroll tetap jalan */
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
 }
 
 /* Custom Scrollbar (Spotify style) */
