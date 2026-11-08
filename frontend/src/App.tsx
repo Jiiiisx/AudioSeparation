@@ -75,6 +75,7 @@ export function App() {
   const [showMixerSheet, setShowMixerSheet] = useState<boolean>(false);
   const [studioTab, setStudioTab] = useState<"visual" | "beats" | "integrasi">("visual");
   const [, setLocalLinks] = useState<Set<string>>(() => getLocalHistory());
+  const [libraryLoadStatus, setLibraryLoadStatus] = useState("");
 
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryView, setLibraryView] = useState<"grid" | "compact" | "list">("grid");
@@ -91,6 +92,12 @@ export function App() {
         className="group relative p-3 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer"
       >
         <div className="relative mb-2">
+          {isLoading && (
+            <div className="absolute inset-0 z-10 rounded-md bg-black/70 flex flex-col items-center justify-center gap-2">
+              <div className="size-7 rounded-full border-2 border-white/20 border-t-[#1ed760] animate-spin" />
+              <span className="text-[11px] text-white/80 text-center px-2">{libraryLoadStatus || "Memuat stem..."}</span>
+            </div>
+          )}
           {song.cover ? (
             <img src={`${apiBase}${song.cover}`} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />
           ) : (
@@ -366,7 +373,7 @@ export function App() {
   const handleSelectLibrary = async (song: LibrarySong) => {
     setLoadingLibrarySongId(song.id);
     try {
-      const track = await loadLibrarySong(song);
+      const track = await loadLibrarySong(song, (msg) => setLibraryLoadStatus(msg));
       localStorage.setItem("riemann-last-track", song.url);
       setCurrentTrack(track);
       setActiveStemKey("master");
@@ -381,12 +388,17 @@ export function App() {
       alert(err instanceof Error ? err.message : "Gagal memuat lagu dari pustaka.");
     } finally {
       setLoadingLibrarySongId(null);
+      setLibraryLoadStatus("");
     }
   };
 
   const handleDeleteLibrary = async (id: number) => {
-    await deleteLibrarySong(id);
-    setLibrary((prev) => prev.filter((x) => x.id !== id));
+    try {
+      await deleteLibrarySong(id);
+      setLibrary((prev) => prev.filter((x) => x.id !== id));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Hapus gagal. Coba lagi.");
+    }
   };
 
   const handleFileUpload = async (file: File) => {
