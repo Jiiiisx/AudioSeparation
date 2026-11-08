@@ -226,8 +226,7 @@ export function App() {
               setCurrentTrack(track);
               setActiveStemKey("master");
               if (engineRef.current) engineRef.current.setTrack(track);
-              setActiveView("studio");
-            })
+          })
             .catch(() => {})
             .finally(() => setLoadingLibrarySongId(null));
         }
