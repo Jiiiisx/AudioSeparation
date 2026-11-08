@@ -856,7 +856,7 @@ export function App() {
                   >
                     {h.thumbnail
                       ? <img src={h.thumbnail} alt="" className="size-16 rounded object-cover flex-none" />
-                      : <div className="size-16 rounded bg-[#282828] flex-none" />}
+                      : <img src={`https://i.ytimg.com/vi/${h.id}/hqdefault.jpg`} alt="" className="size-16 rounded object-cover flex-none" />}
                     <div className="min-w-0">
                       <p className="text-sm text-white truncate">{h.title}</p>
                       <p className="text-xs text-[#a7a7a7] truncate">
