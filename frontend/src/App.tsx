@@ -479,9 +479,8 @@ export function App() {
 
   const handlePickHit = (hit: SearchHit) => {
     const url = `https://www.youtube.com/watch?v=${hit.id}`;
-    setYtHits([]);
+    setYtHits([]); // tutup daftar hasil saja; modal + progress tetap tampil
     setYtQuery("");
-    setShowSpotifyModal(false); // proes tetap jalan di latar; klik slot "Cari lagu" untuk balik
     setSpotifyUrl(url);
     void handleResolveSpotify(url);
   };
