@@ -479,21 +479,24 @@ export function App() {
 
   const handlePickHit = (hit: SearchHit) => {
     const url = `https://www.youtube.com/watch?v=${hit.id}`;
+    setYtHits([]);
+    setYtQuery("");
+    setShowSpotifyModal(false); // proes tetap jalan di latar; klik slot "Cari lagu" untuk balik
     setSpotifyUrl(url);
     void handleResolveSpotify(url);
   };
 
   const handleResolveSpotify = async (directUrl?: string) => {
-  const url = (directUrl ?? spotifyUrl).trim();
-  if (!url) return;
-  if (/open\.spotify\.com/.test(url)) {
-    setSpotifyStatus("Error: dukungan Spotify sudah dihapus — tempelkan link video YouTube.");
-    return;
-  }
-  if (!/(youtube\.com\/watch\?v=|youtu\.be\/)/.test(url)) {
-    setSpotifyStatus("Error: tempelkan link video YouTube (pastikan videonya audio asli lagunya).");
-    return;
-  }
+    const url = (directUrl ?? spotifyUrl).trim();
+    if (!url) return;
+    if (/open\.spotify\.com/.test(url)) {
+      setSpotifyStatus("Error: dukungan Spotify sudah dihapus — tempelkan link video YouTube.");
+      return;
+    }
+    if (!/(youtube\.com\/watch\?v=|youtu\.be\/)/.test(url)) {
+      setSpotifyStatus("Error: tempelkan link video YouTube (pastikan videonya audio asli lagunya).");
+      return;
+    }
     setSpotifyStatus("Diterima backend, memulai pipeline...");
     setSpotifyProgress(0);
     setSpotifyBusy(true);
