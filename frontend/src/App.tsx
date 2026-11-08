@@ -485,6 +485,7 @@ export function App() {
       }
       setShowSpotifyModal(false);
       setActiveView("studio");
+      setSpotifyUrl("");
       fetchLibrary().then((rows) => {
         if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
           rows.forEach((r) => markLocalLink(r.url));
@@ -531,7 +532,7 @@ export function App() {
             onSelectView={setActiveView}
             onFileUpload={handleFileUpload}
             isProcessing={isProcessing}
-            onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); }}
+            onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); if (!spotifyBusy) setSpotifyUrl(""); }}
             hasSpotifyJob={hasSpotifyJob}
           />
         </div>
@@ -933,7 +934,7 @@ export function App() {
               onSelectView={(v) => { setActiveView(v); setShowMobileNav(false); }}
               onFileUpload={(file) => { handleFileUpload(file); setShowMobileNav(false); }}
               isProcessing={isProcessing}
-              onOpenSpotify={() => { setShowMobileNav(false); setShowSpotifyModal(true); setSpotifyStatus(""); }}
+              onOpenSpotify={() => { setShowMobileNav(false); setShowSpotifyModal(true); setSpotifyStatus(""); if (!spotifyBusy) setSpotifyUrl(""); }}
               hasSpotifyJob={hasSpotifyJob}
             />
           </div>
