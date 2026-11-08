@@ -12,19 +12,18 @@ import {
   IconAdjustmentsHorizontal,
     IconMusic,
     IconPlayerPlayFilled,
-    IconBrandSpotify,
     IconBrandYoutube,
   IconSearch,
-  IconTrash,
   IconLayoutGrid,
   IconLayoutKanban,
   IconListSearch,
   IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, getLocalHistory, apiBase, searchSongs, type SearchHit } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, getLocalHistory, searchSongs, type SearchHit } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
+import { LibraryCard } from "./components/LibraryCard";
 import { MiniPlayer } from "./components/MiniPlayer";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
 import { BeatDetectorPanel } from "./components/BeatDetectorPanel";
@@ -85,124 +84,19 @@ export function App() {
   const [libraryError, setLibraryError] = useState(false);
   const localLibrary = library; // tampilkan SEMUA lagu dari backend (filter pencarian terpisah di bawah)
 
-  const GridCard = ({ song }: { song: LibrarySong }) => {
-    const isLoading = loadingLibrarySongId === song.id;
-    const active = currentTrack?.name === song.title;
-    return (
-      <button
-        onClick={() => !isLoading && handleSelectLibrary(song)}
-        disabled={isLoading}
-        className="group relative p-3 rounded-lg bg-[#181818] hover:bg-[#1f1f1f] transition text-left cursor-pointer"
-      >
-        <div className="relative mb-2">
-          {isLoading && (
-            <div className="absolute inset-0 z-10 rounded-md bg-black/70 flex flex-col items-center justify-center gap-2">
-              <div className="size-7 rounded-full border-2 border-white/20 border-t-[#1ed760] animate-spin" />
-              <span className="text-[11px] text-white/80 text-center px-2">{libraryLoadStatus || "Memuat stem..."}</span>
-            </div>
-          )}
-          {song.cover ? (
-            <img src={`${apiBase}${song.cover}`} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />
-          ) : (
-            <div className="aspect-square w-full rounded-md bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
-              <IconBrandSpotify className="size-8 text-white/80" />
-            </div>
-          )}
-          <div className="absolute bottom-1.5 right-1.5 size-9 rounded-full bg-[#1ed760] flex items-center justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition shadow-lg">
-            <IconPlayerPlayFilled className="size-[18px] text-black fill-black" />
-          </div>
-        </div>
-        <div className={`text-sm font-semibold truncate ${active ? "text-[#1ed760]" : "text-white"}`}>{song.title}</div>
-        <div className="text-xs text-[#a7a7a7] truncate">{song.artist}</div>
-        <span
-          role="button"
-          title="Hapus dari pustaka"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteLibrary(song.id);
-          }}
-          className="absolute top-2 right-2 p-1 rounded bg-black/50 opacity-0 group-hover:opacity-100 text-[#a7a7a7] hover:text-red-400 transition cursor-pointer"
-        >
-          <IconTrash className="size-4" />
-        </span>
-      </button>
-    );
-  };
-
-  const CompactCard = ({ song }: { song: LibrarySong }) => {
-    const isLoading = loadingLibrarySongId === song.id;
-    const active = currentTrack?.name === song.title;
-    return (
-      <button
-        onClick={() => !isLoading && handleSelectLibrary(song)}
-        disabled={isLoading}
-        className="group relative aspect-square rounded-md overflow-hidden cursor-pointer"
-        title={`${song.title} · ${song.artist}`}
-      >
-        {song.cover ? (
-          <img src={`${apiBase}${song.cover}`} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
-            <IconBrandSpotify className="size-6 text-white/80" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-          {!isLoading && <IconPlayerPlayFilled className="size-5 text-white" />}
-        </div>
-        {active && <div className="absolute inset-0 ring-2 ring-inset ring-[#1ed760]" />}
-        <span
-          role="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteLibrary(song.id);
-          }}
-          className="absolute top-1 right-1 p-0.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 text-white/80 hover:text-red-400 transition cursor-pointer"
-        >
-          <IconTrash className="size-3.5" />
-        </span>
-      </button>
-    );
-  };
-
-  const ListRow = ({ song, index }: { song: LibrarySong; index: number }) => {
-    const isLoading = loadingLibrarySongId === song.id;
-    const active = currentTrack?.name === song.title;
-    return (
-      <button
-        onClick={() => !isLoading && handleSelectLibrary(song)}
-        disabled={isLoading}
-        className={`group w-full flex items-center gap-3 px-3 py-2 hover:bg-[#1f1f1f] transition text-left cursor-pointer ${active ? "bg-[#1a1a1a]" : ""}`}
-      >
-        <span className="w-5 text-xs text-[#7a7a7a] text-right shrink-0 hidden sm:block">{index}</span>
-        <span className="relative size-10 rounded overflow-hidden shrink-0">
-          {song.cover ? (
-            <img src={`${apiBase}${song.cover}`} alt="" className="w-full h-full object-cover" loading="lazy" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-[#1db954] to-[#14803b] flex items-center justify-center">
-              <IconMusic className="size-4 text-white/80" />
-            </div>
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={`block text-sm font-semibold truncate ${active ? "text-[#1ed760]" : "text-white"}`}>{song.title}</span>
-          <span className="block text-xs text-[#a7a7a7] truncate">{song.artist}</span>
-        </span>
-        <span className="hidden group-hover:block text-[#1ed760] shrink-0 w-5 text-center">
-          {isLoading ? "..." : <IconPlayerPlayFilled className="size-4" />}
-        </span>
-        <span
-          role="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteLibrary(song.id);
-          }}
-          className="p-1 rounded opacity-0 group-hover:opacity-100 text-[#a7a7a7] hover:text-red-400 transition cursor-pointer"
-        >
-          <IconTrash className="size-4" />
-        </span>
-      </button>
-    );
-  };
+  const renderCard = (variant: "grid" | "compact" | "list") => (song: LibrarySong, index?: number) => (
+    <LibraryCard
+      key={song.id}
+      song={song}
+      variant={variant}
+      isLoading={loadingLibrarySongId === song.id}
+      active={currentTrack?.name === song.title}
+      status={libraryLoadStatus}
+      index={index}
+      onSelect={handleSelectLibrary}
+      onDelete={handleDeleteLibrary}
+    />
+  );
 
   const hasSpotifyJob = Boolean(spotifyStatus) && !spotifyStatus.startsWith("Error") && !showSpotifyModal;
 
@@ -647,24 +541,18 @@ export function App() {
                   if (libraryView === "compact")
                     return (
                       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                        {shown.map((song) => (
-                          <CompactCard key={song.id} song={song} />
-                        ))}
+                        {shown.map(renderCard("compact"))}
                       </div>
                     );
                   if (libraryView === "list")
                     return (
                       <div className="divide-y divide-white/5 rounded-lg bg-[#181818]">
-                        {shown.map((song, idx) => (
-                          <ListRow key={song.id} song={song} index={idx + 1} />
-                        ))}
+                        {shown.map((song, idx) => renderCard("list")(song, idx + 1))}
                       </div>
                     );
                   return (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                      {shown.map((song) => (
-                        <GridCard key={song.id} song={song} />
-                      ))}
+                      {shown.map(renderCard("grid"))}
                     </div>
                   );
                 })())}
