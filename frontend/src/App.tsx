@@ -466,6 +466,10 @@ export function App() {
       setSpotifyStatus("Error: sisakan satu lagu saja — tautkan link /track/, bukan playlist.");
       return;
     }
+    if (!/open\.spotify\.com\/track\//.test(url) && !/(youtube\.com\/watch|youtu\.be\/)/.test(url)) {
+      setSpotifyStatus("Error: tempelkan link Spotify /track/ atau link video YouTube.");
+      return;
+    }
     setSpotifyStatus("Diterima backend, memulai pipeline...");
     setSpotifyProgress(0);
     setSpotifyBusy(true);
@@ -792,10 +796,9 @@ export function App() {
       {showSpotifyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-white">Tautkan lagu Spotify</h3>
+            <h3 className="text-xl font-bold text-white">Tautkan lagu</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
-              Tempel link satu lagu dari Spotify (Share → Copy Link). Server akan meminjam audio via resolver lalu memisahkan 6 stem.
-              Berlangsung 1–5 menit tergantung durasi lagu.
+              Tempel link Spotify (/track/) atau link video YouTube (pastikan videonya audio asli lagunya). Server memisahkan 6 stem; durasi proses 1–5 menit.
             </p>
             <input
               type="text"

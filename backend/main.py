@@ -133,6 +133,22 @@ def resolve_metadata(url: str) -> tuple[str, str]:
     return url[-40:], "Resolver"
 
 
+def resolve_youtube_metadata(url: str) -> tuple[str, str]:
+    """Judul + artis dari video YouTube: 'Artist - Song (…)' dipecah jadi dua."""
+    import yt_dlp as _yd
+    with _yd.YoutubeDL({"quiet": True, "skip_download": True}) as yd:
+        info = yd.extract_info(url, download=False) or {}
+    raw_title = str(info.get("title") or "Lagu YouTube")
+    channel = str(info.get("channel") or info.get("uploader") or "")
+    # Konvensi umum: "Artist - Judul kalau ada pemisah ' - ' dan bagian kiri mirip nama kanal
+    if " - " in raw_title and len(raw_title.split(" - ")[0]) <= 60:
+        artist, title = raw_title.split(" - ", 1)
+        # Buang tanda kurung di judul seperti "(Official Video)"
+        title = re.sub(r"[([].*?[)\]]", " ", title).strip()
+        return title or raw_title, artist.strip()
+    return raw_title, channel or "YouTube"
+
+
 def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", (s or "").lower())
 
@@ -195,6 +211,17 @@ def _pick_youtube_track(artist: str, title: str):
         for kw in ("official audio", "topic", "official music video", "official lyric"):
             if kw in t_low:
                 s += 8.0
+        # Kanal unggah resmi = sinyal terkuat: "Artist - Topic", VEVO, kanal artis sendiri
+        ch = _norm(str(c.get("channel") or c.get("uploader") or ""))
+        if a_n and a_n in ch:
+            s += 120.0
+        for good in ("topic", "vevo", "official"):
+            if good in ch:
+                s += 40.0
+                break
+        # Judul dengan artis + judul lagu lengkap = kandidat paling spesifik
+        if t_n and t_n in t and a_n and a_n in t:
+            s += 30.0
         if t_n and (t_n in t or t in t_n):
             s += 100.0
         s += 8.0 * sum(1 for w in words if w in t)
@@ -347,6 +374,8 @@ def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None
             return
         if known_title:
             title, artist = known_title, (known_artist or "Spotify")
+        elif re.search(r"(youtube\.com/watch|youtu\.be/)", source_url):
+            title, artist = resolve_youtube_metadata(source_url)
         else:
             title, artist = resolve_metadata(source_url)
         set_job(job_id, status="queued", title=title, artist=artist, message="Antrian...")
