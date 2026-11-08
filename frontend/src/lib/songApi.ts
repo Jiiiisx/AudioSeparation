@@ -119,7 +119,7 @@ async function decodeStemsToTrack(
     name,
     artist,
     cover: cover ? `${API_BASE}${cover}` : undefined,
-    genre: "SPOTIFY",
+    genre: "YOUTUBE",
     bpm: 120,
     duration,
     sampleRate,
