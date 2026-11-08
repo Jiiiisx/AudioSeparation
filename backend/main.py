@@ -234,7 +234,7 @@ def _pick_youtube_track(artist: str, title: str):
     bandingkan preview 30 s iTunes vs kandidat (cosine per 5 s)."""
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True,
-                                "js_runtimes": {"node": {}}}) as ydl:
+                                "js_runtimes": ["node"]}) as ydl:
             info = ydl.extract_info(f"ytsearch10:{artist} - {title}", download=False)
         entries = [e for e in ((info or {}).get("entries") or []) if e]
     except Exception:
@@ -287,7 +287,7 @@ def _pick_youtube_track(artist: str, title: str):
     good = sorted([c for c in entries if score(c) > 0], key=score, reverse=True)
     if not good:
         return None
-    best = good[0]
+    best = {k: good[0].get(k) for k in ("id", "title", "duration", "channel", "uploader")}
     # PEMERIKSA AKUSTIK: bandingkan preview 30 s iTunes vs audio kandidat
     if preview_url:
         import tempfile, os
@@ -316,7 +316,8 @@ def _pick_youtube_track(artist: str, title: str):
                 print(f"[resolver] audio-match {cand.get('title')!r} → sim={s0:.3f}")
             sims = [(s, c) for s, c in sims if s is not None]
             if sims:
-                best_sim, best = max(sims, key=lambda x: x[0])
+                best_sim, cand_best = max(sims, key=lambda x: x[0])
+                best = {k: cand_best.get(k) for k in ("id", "title", "duration", "channel", "uploader")}
                 if best_sim < 0.45:
                     print(f"[resolver] sim tertinggi {best_sim:.3f} < 0.45 → tolak semua kandidat")
                     return None
@@ -337,7 +338,7 @@ def _similarity_candidate(video_id: str, ref: list):
             "outtmpl": out,
             "download_ranges": lambda info, ydl: [{"start_time": 0, "end_time": 35.0}],
             "force_keyframes_at_cuts": True,
-            "js_runtimes": {"node": {}},
+            "js_runtimes": ["node"],
         }
         with yt_dlp.YoutubeDL(opts) as yd:
             yd.download([f"https://www.youtube.com/watch?v={video_id}"])
@@ -403,7 +404,7 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         # Fallback client ekstraktor tanpa login: ios & tv_embedded sering lolos.
         # tanpa cookie: paksakan klien yang kadang lolos bot wall; dengan cookie: default web lebih stabil
         # solver JS challenge YouTube (n-challenge): pakai node di dalam container
-        "js_runtimes": {"node": {}},
+        "js_runtimes": ["node"],
         # web_safari stabil bersama cookie; fallback ios/tv/mweb tanpa cookie
         **({"extractor_args": {"youtube": {"player_client": ["web_safari"]}} if cookie_file else {"extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}}}}),
         **({"cookiefile": str(cookie_file)} if cookie_file else {}),
