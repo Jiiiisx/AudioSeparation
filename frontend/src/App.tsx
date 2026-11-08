@@ -22,9 +22,7 @@ import {
   IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, markLocalLink, getLocalHistory, apiBase, searchSongs, type SearchHit } from "./lib/songApi";
-
-const LOCAL_HISTORY_FLAG = "riemann-history-seeded";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, getLocalHistory, apiBase, searchSongs, type SearchHit } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
@@ -213,14 +211,11 @@ export function App() {
     engine.onTimeUpdate((time) => setCurrentTime(time));
     engine.onEnded(() => setIsPlaying(false));
 
+    // Pustaka per-device: lagu dari server hanya tampil di browser yang memprosesnya
     fetchLibrary().then((rows) => {
-        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
-          rows.forEach((r) => markLocalLink(r.url));
-          setLocalLinks(getLocalHistory());
-          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
-        }
-        setLibrary(rows);
-        try { localStorage.setItem("riemann-library-cache", JSON.stringify(rows)); } catch { /* penuh = skip */ }
+        const mine = rows.filter((r) => getLocalHistory().has(r.url));
+        setLibrary(mine);
+        try { localStorage.setItem("riemann-library-cache", JSON.stringify(mine)); } catch { /* penuh = skip */ }
         // Pulihkan lagu terakhir yang dibuka (refresh tidak kembali ke beranda)
         const lastUrl = localStorage.getItem("riemann-last-track");
         const song = lastUrl ? rows.find((r) => r.url === lastUrl) : undefined;
@@ -518,12 +513,7 @@ export function App() {
       setActiveView("studio");
       setSpotifyUrl("");
       fetchLibrary().then((rows) => {
-        if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {
-          rows.forEach((r) => markLocalLink(r.url));
-          setLocalLinks(getLocalHistory());
-          localStorage.setItem(LOCAL_HISTORY_FLAG, "1");
-        }
-        setLibrary(rows);
+        setLibrary(rows.filter((r) => getLocalHistory().has(r.url)));
       }).catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal memproses link Spotify";
