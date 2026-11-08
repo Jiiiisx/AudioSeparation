@@ -13,6 +13,7 @@ import {
     IconMusic,
     IconPlayerPlayFilled,
     IconBrandSpotify,
+    IconBrandYoutube,
   IconSearch,
   IconTrash,
   IconLayoutGrid,
@@ -462,12 +463,12 @@ export function App() {
   const handleResolveSpotify = async () => {
     const url = spotifyUrl.trim();
     if (!url) return;
-    if (/open\.spotify\.com\/(playlist|album)\//.test(url)) {
-      setSpotifyStatus("Error: sisakan satu lagu saja — tautkan link /track/, bukan playlist.");
+    if (/open\.spotify\.com/.test(url)) {
+      setSpotifyStatus("Error: dukungan Spotify sudah dihapus — tempelkan link video YouTube.");
       return;
     }
-    if (!/open\.spotify\.com\/track\//.test(url) && !/(youtube\.com\/watch|youtu\.be\/)/.test(url)) {
-      setSpotifyStatus("Error: tempelkan link Spotify /track/ atau link video YouTube.");
+    if (!/(youtube\.com\/watch|youtu\.be\/)/.test(url)) {
+      setSpotifyStatus("Error: tempelkan link video YouTube (pastikan videonya audio asli lagunya).");
       return;
     }
     setSpotifyStatus("Diterima backend, memulai pipeline...");
@@ -574,7 +575,7 @@ export function App() {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#1ed760]">Belakangan dianalisis</span>
                   <div className="font-bold text-white truncate">{currentTrack?.name || "Belum ada lagu"}</div>
                   <p className="text-xs text-[#a7a7a7] truncate">
-                    {currentTrack ? currentTrack.artist : "Unggah file atau tautkan Spotify lewat Pustaka"}
+                    {currentTrack ? currentTrack.artist : "Unggah file atau tautkan video YouTube lewat Pustaka"}
                   </p>
                 </div>
                 <IconPlayerPlayFilled className="size-6 text-[#1ed760] opacity-0 group-hover:opacity-100 transition shrink-0" />
@@ -613,7 +614,7 @@ export function App() {
 
               {localLibrary.length === 0 ? (
                 <div className="p-6 rounded-lg bg-[#181818] text-sm text-[#a7a7a7]">
-                  Belum ada lagu tersimpan. Tautkan lagu Spotify pertamamu — lagu yang sudah diproses muncul di sini.
+                  Belum ada lagu tersimpan. Tautkan video YouTube pertamamu — lagu yang sudah diproses muncul di sini.
                 </div>
               ) : (
                 (() => {
@@ -657,7 +658,7 @@ export function App() {
                   {
                     step: 1,
                     title: "Tautkan atau unggah lagu",
-                    desc: "Tempel link Spotify (track atau playlist) atau unggah MP3/WAV lokal lewat Pustaka di kiri.",
+                    desc: "Tempel link video YouTube (pilih video yang audio-nya memang lagu aslinya) atau unggah MP3/WAV lokal lewat Pustaka di kiri.",
                   },
                   {
                     step: 2,
@@ -683,8 +684,8 @@ export function App() {
                   onClick={() => setShowSpotifyModal(true)}
                   className="sm:col-span-3 inline-flex items-center justify-center gap-2 w-full sm:w-fit px-6 py-3 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-[1.03] active:scale-95 transition cursor-pointer"
                 >
-                  <IconBrandSpotify className="size-5" />
-                  Mulai dari link Spotify
+                  <IconBrandYoutube className="size-5" />
+                  Mulai dari link YouTube
                 </button>
               </div>
 
@@ -798,14 +799,14 @@ export function App() {
           <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-white">Tautkan lagu</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
-              Tempel link Spotify (/track/) atau link video YouTube (pastikan videonya audio asli lagunya). Server memisahkan 6 stem; durasi proses 1–5 menit.
-            </p>
+                    Tempel link video YouTube (pastikan videonya audio asli lagunya). Server memisahkan 6 stem; durasi proses 1–5 menit.
+                  </p>
             <input
               type="text"
               value={spotifyUrl}
               onChange={(e) => setSpotifyUrl(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleResolveSpotify(); }}
-              placeholder="https://open.spotify.com/track/..."
+              placeholder="https://www.youtube.com/watch?v=..."
               className="mt-4 w-full rounded-md bg-[#282828] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1ed760]"
             />
             {spotifyStatus && !spotifyStatus.startsWith("Error") && (

@@ -6,7 +6,7 @@ import {
   IconMusic,
   IconUpload,
   IconLoader2,
-  IconBrandSpotify,
+  IconBrandYoutube,
   IconLink,
 } from "@tabler/icons-react";
 
@@ -107,13 +107,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-[#1a1a1a] transition text-left cursor-pointer"
           >
             <div className="size-9 rounded bg-[#333] flex items-center justify-center shrink-0">
-              <IconBrandSpotify className={`size-4 ${hasSpotifyJob ? "text-[#1ed760] animate-pulse" : "text-[#1db954]"}`} />
+              <IconBrandYoutube className={`size-4 ${hasSpotifyJob ? "text-[#1ed760] animate-pulse" : "text-[#aaaaaa]"}`} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-white truncate">
-                {hasSpotifyJob ? "Memproses lagu..." : "Tautkan Spotify"}
+                {hasSpotifyJob ? "Memproses lagu..." : "Tautkan YouTube"}
               </div>
-              <div className="text-xs text-[#a7a7a7] truncate">Tempel link Spotify</div>
+              <div className="text-xs text-[#a7a7a7] truncate">Tempel link YouTube</div>
             </div>
             <IconLink className="size-4 text-[#a7a7a7]" />
           </button>
