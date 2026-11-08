@@ -163,17 +163,21 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
         # tanpa cookie: paksakan klien yang kadang lolos bot wall; dengan cookie: default web lebih stabil
         # solver JS challenge YouTube (n-challenge): pakai node di dalam container
         "js_runtimes": {"node": {}},
-        # web_safari stabil bersama cookie; fallback ios/tv/mweb tanpa cookie
-        **({"extractor_args": {"youtube": {"player_client": ["web_safari"]}} if cookie_file else {"extractor_args": {"youtube": {"player_client": ["ios", "tv", "mweb"]}}}}),
-        **({"cookiefile": str(cookie_file)} if cookie_file else {}),
     }
     cover_rel: str | None = None
-    # foku 1: download audio. client dirotor terkait bot wall
-    client_list = ["web_safari", "mweb", "tv", "ios"] if cookie_file else ["mweb", "ios", "tv"]
+    # Cookie invalid membuat SEMUA percobaan gagal jika dipakai terus:
+    # cookie hanya dipakai di percobaan pertama, lanjutan anonymous (cookiefile dilepas).
+    attempts = []
+    if cookie_file:
+        attempts.append(("web_safari", True))
+        attempts.append(("mweb", True))
+    attempts += [("mweb", False), ("tv", False), ("ios", False)]
     dl_err = ""
-    for cc in client_list:
+    for cc, use_cookie in attempts:
         attempt = dict(ydl_opts)
         attempt["extractor_args"] = {"youtube": {"player_client": [cc]}}
+        if cookie_file and use_cookie:
+            attempt["cookiefile"] = str(cookie_file)
         try:
             set_job(job_id, message=f"Audio terverifikasi ({title}) — resolver client={cc}...")
             with yt_dlp.YoutubeDL(attempt) as ydl:
@@ -292,23 +296,12 @@ def search_songs(q: str):
     q = (q or "").strip()
     if not q:
         raise HTTPException(400, "Query pencarian tidak boleh kosong.")
-    opts = {
-        "quiet": True, "skip_download": True,
-        "extract_flat": "in_playlist",
-        "js_runtimes": {"node": {}},
-    }
-    cs = pathlib.Path("/etc/secrets/cookies.txt")
-    tmp = None
-    tmpdir = tempfile.mkdtemp(prefix="ytsearch-")
-    if not cs.exists() and os.environ.get("RIEMANN_YT_COOKIES"):
-        tmp = pathlib.Path(tmpdir) / "cookies.txt"
-        tmp.write_text(os.environ["RIEMANN_YT_COOKIES"], encoding="utf-8")
-        opts["cookiefile"] = str(tmp)
-    elif cs.exists():
-        tmp = pathlib.Path(tmpdir) / "cookies.txt"
-        shutil.copyfile(cs, tmp)
-        opts["cookiefile"] = str(tmp)
-    try:
+    jsopts = {"quiet": True, "skip_download": True, "extract_flat": "in_playlist", "js_runtimes": {"node": {}}}
+
+    def _do_search(cookiefile=None):
+        opts = dict(jsopts)
+        if cookiefile:
+            opts["cookiefile"] = cookiefile
         with yt_dlp.YoutubeDL(opts) as yd:
             info = yd.extract_info(f"ytsearch8:{q}", download=False) or {}
         out = []
@@ -323,10 +316,30 @@ def search_songs(q: str):
                 "thumbnail": e.get("thumbnail") or "",
             })
         return out
+
+    tmpcookie = None
+    try:
+        out = None
+        cs = pathlib.Path("/etc/secrets/cookies.txt")
+        # Coba tanpa cookie dulu (search hanya butuh metadata); cookie dicoba bila kosong.
+        try:
+            out = _do_search()
+        except Exception:
+            if cs.exists():
+                tmpdir = tempfile.mkdtemp(prefix="ytsearch-")
+                tmpcookie = pathlib.Path(tmpdir) / "cookies.txt"
+                shutil.copyfile(cs, tmpcookie)
+                out = _do_search(str(tmpcookie))
+        if not out:
+            raise HTTPException(502, "Pencarian YouTube tidak menghasilkan video.")
+        return out
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(502, f"Pencarian YouTube gagal: {e}")
     finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        if tmpcookie:
+            shutil.rmtree(tmpcookie.parent, ignore_errors=True)
 
 
 @app.post("/api/process-track")
