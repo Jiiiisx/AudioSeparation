@@ -826,6 +826,8 @@ export function App() {
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
               Ketik judul + artis lagu, pilih video yang audio-nya memang lagu aslinya. Server memisahkan 6 stem; durasi proses 1–5 menit.
             </p>
+            {!spotifyBusy && (
+              <>
             <div className="mt-4 flex gap-2">
               <input
                 type="text"
@@ -872,6 +874,8 @@ export function App() {
               placeholder="https://www.youtube.com/watch?v=..."
               className="mt-4 w-full rounded-md bg-[#282828] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1ed760]"
             />
+              </>
+            )}
             {spotifyStatus && !spotifyStatus.startsWith("Error") && (
               <div className="mt-4">
                 <div className="flex items-center justify-between text-xs mb-1.5">
