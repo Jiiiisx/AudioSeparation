@@ -100,6 +100,10 @@ def db_valid(row: sqlite3.Row) -> bool:
 
 JOBS: dict[str, dict[str, Any]] = {}
 JOBS_LOCK = threading.Lock()
+CANCELLED: set[str] = set()
+RUNNING_PROCS: dict[str, subprocess.Popen] = {}
+# Demucs butuh RAM besar: job demucs HARUS serial (1 slot).
+PIPELINE_SEM = threading.Semaphore(int(os.environ.get("RIEMANN_MAX_CONCURRENCY", "1") or 1))
 
 
 def set_job(job_id: str, **fields: Any) -> None:
@@ -256,7 +260,7 @@ def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None
             set_job(job_id, status="error", message="Hanya link video YouTube yang didukung.")
             return
         title, artist = resolve_youtube_metadata(source_url)
-        set_job(job_id, status="queued", title=title, artist=artist, message="Antrian...")
+        set_job(job_id, status="downloading", title=title, artist=artist, message="Mengambil info video...")
         # Gerbang: Resolver boleh paralel, tapi Demucs (butuh RAM besar)
         # HARUS serial — job berikutnya otomatis menunggu di sini.
         PIPELINE_SEM.acquire()
@@ -265,6 +269,7 @@ def run_pipeline(job_id: str, source_url: str, *, known_title: str | None = None
                 set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
                 return
             set_job(job_id, message="Selesai antri, mulai proses...")
+            print(f"[pipeline] {job_id} mulai core", flush=True)
             _pipeline_core(job_id, source_url, title, artist)
         finally:
             PIPELINE_SEM.release()
@@ -360,8 +365,8 @@ def process_track(req: TrackRequest):
         return {"job_id": job_id, "cached": True}
 
     job_id = hashlib.md5(url.encode()).hexdigest()[:12] + "-" + os.urandom(2).hex()
-    threading.Thread(target=run_pipeline, args=(job_id, url), daemon=True).start()
     set_job(job_id, status="queued", message="Diterima, memulai pipeline...")
+    threading.Thread(target=run_pipeline, args=(job_id, url), daemon=True).start()
     return {"job_id": job_id, "cached": False}
 
 
