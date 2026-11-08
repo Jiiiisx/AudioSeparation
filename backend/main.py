@@ -193,7 +193,9 @@ def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> Non
             dl_err = str(e)[:160]
             (workdir / "source.mp3").unlink(missing_ok=True)
     if dl_err:
-        set_job(job_id, status="error", message=f"Resolver gagal: {dl_err}")
+        if "Sign in to confirm" in dl_err or "cookies" in dl_err.lower() or "bot" in dl_err.lower():
+            dl_err = "Video ini menolak diunduh tanpa login YouTube. Coba video lain dulu."
+        set_job(job_id, status="error", message=f"Gagal unduh: {dl_err}")
         return
     try:
         # Thumbnail YouTube (link kini selalu YouTube)

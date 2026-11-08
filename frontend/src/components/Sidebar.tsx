@@ -18,6 +18,7 @@ interface SidebarProps {
   onOpenSpotify: () => void;
   className?: string;
   hasSpotifyJob: boolean;
+  spotifyError?: string | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isProcessing,
   onOpenSpotify,
   hasSpotifyJob,
+  spotifyError = null,
   className = "",
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -113,7 +115,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-sm font-semibold text-white truncate">
                 {hasSpotifyJob ? "Memproses lagu..." : "Cari lagu"}
               </div>
-              <div className="text-xs text-[#a7a7a7] truncate">Cari dari YouTube</div>
+              <div className="text-xs text-[#a7a7a7] truncate">{spotifyError ? spotifyError.replace(/^Error:\s*/, "") : "Cari dari YouTube"}</div>
+              {spotifyError && <div className="mt-1 h-0.5 w-full rounded bg-[#f04a4a]" />}
             </div>
             <IconLink className="size-4 text-[#a7a7a7]" />
           </button>

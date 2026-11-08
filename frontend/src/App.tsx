@@ -564,6 +564,7 @@ export function App() {
             isProcessing={isProcessing}
             onOpenSpotify={() => { setShowSpotifyModal(true); setSpotifyStatus(""); if (!spotifyBusy) setSpotifyUrl(""); }}
             hasSpotifyJob={hasSpotifyJob}
+            spotifyError={spotifyStatus.startsWith("Error") ? spotifyStatus : null}
           />
         </div>
 
@@ -1007,6 +1008,7 @@ export function App() {
               isProcessing={isProcessing}
               onOpenSpotify={() => { setShowMobileNav(false); setShowSpotifyModal(true); setSpotifyStatus(""); if (!spotifyBusy) setSpotifyUrl(""); }}
               hasSpotifyJob={hasSpotifyJob}
+              spotifyError={spotifyStatus.startsWith("Error") ? spotifyStatus : null}
             />
           </div>
         </div>
