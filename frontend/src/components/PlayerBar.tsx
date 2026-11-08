@@ -52,7 +52,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <footer className="h-[72px] shrink-0 bg-black flex items-center justify-between gap-4 px-4">
+    <footer className="hidden md:flex h-[72px] shrink-0 bg-black items-center justify-between gap-4 px-4">
       {/* Kiri: info track */}
       <div className="flex items-center gap-3 w-[30%] min-w-0">
         {cover ? (

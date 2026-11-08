@@ -25,6 +25,7 @@ import { Sidebar } from "./components/Sidebar";
 import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, getLocalHistory, apiBase, searchSongs, type SearchHit } from "./lib/songApi";
 import type { LibrarySong } from "./lib/songApi";
 import { PlayerBar } from "./components/PlayerBar";
+import { MiniPlayer } from "./components/MiniPlayer";
 import { RiemannVisualizer } from "./components/RiemannVisualizer";
 import { BeatDetectorPanel } from "./components/BeatDetectorPanel";
 import { IntegrationMetricsTable } from "./components/IntegrationMetricsTable";
@@ -559,7 +560,7 @@ export function App() {
           />
         </div>
 
-        <main className="relative flex-1 overflow-y-auto rounded-lg bg-gradient-to-b from-[#1f1f1f] via-[#121212] to-[#121212]">
+        <main className="relative flex-1 overflow-y-auto rounded-lg bg-gradient-to-b from-[#1f1f1f] via-[#121212] to-[#121212] pb-20 md:pb-0">
           {/* Tombol menu mobile (desktop tanpa header) */}
           <div className="md:hidden sticky top-0 z-10 px-4 pt-3">
             <button
@@ -940,7 +941,7 @@ export function App() {
       {activeView === "studio" && currentTrack && (
         <button
           onClick={() => setShowMixerSheet(true)}
-          className="md:hidden fixed right-4 bottom-24 z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
+          className="md:hidden fixed right-4 bottom-[calc(86px+env(safe-area-inset-bottom))] z-30 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1ed760] text-black text-sm font-bold shadow-xl active:scale-95 transition cursor-pointer"
         >
           <IconAdjustmentsHorizontal className="size-5" />
           Mixer
@@ -1020,6 +1021,20 @@ export function App() {
         onMasterVolumeChange={handleMasterVolumeChange}
         onToggleMasterMute={handleToggleMasterMute}
       />
+
+      {currentTrack && (
+        <MiniPlayer
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          trackName={currentTrack.name}
+          artist={currentTrack.artist}
+          cover={currentTrack.cover}
+          onPlayPause={handlePlayPause}
+          onSeek={handleSeek}
+          onOpenMixer={() => setShowMixerSheet(true)}
+        />
+      )}
     </div>
   );
 }
