@@ -211,6 +211,7 @@ export function App() {
     const engine = new MultiTrackAudioEngine();
     engineRef.current = engine;
     engine.onTimeUpdate((time) => setCurrentTime(time));
+    engine.onEnded(() => setIsPlaying(false));
 
     fetchLibrary().then((rows) => {
         if (!localStorage.getItem(LOCAL_HISTORY_FLAG) && rows.length && getLocalHistory().size === 0) {

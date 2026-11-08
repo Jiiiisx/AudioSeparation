@@ -41,6 +41,7 @@ export class MultiTrackAudioEngine {
   ]);
 
   private onTimeUpdateCallback: ((time: number, duration: number) => void) | null = null;
+  private onEndedCallback: (() => void) | null = null;
   private animFrameId: number | null = null;
 
   constructor() {
@@ -104,7 +105,9 @@ export class MultiTrackAudioEngine {
 
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
-      source.loop = true;
+      // Putar sekali saja: saat selesai, stop otomatis (Spotify behaviour)
+      source.loop = false;
+      source.onended = () => this.handleSourceEnded(key);
 
       let gainNode = this.gainNodes.get(key);
       if (!gainNode) {
@@ -126,19 +129,30 @@ export class MultiTrackAudioEngine {
   public pause() {
     if (!this.isPlaying || !this.ctx) return;
     this.pauseOffset = this.getCurrentTime();
+    this.isPlaying = false; // sebelum cleanup: onended dari source.stop() diabaikan
     this.cleanupSources();
-    this.isPlaying = false;
     this.stopTicker();
   }
 
   public stop() {
-    this.cleanupSources();
     this.isPlaying = false;
+    this.cleanupSources();
     this.pauseOffset = 0;
     this.stopTicker();
     if (this.onTimeUpdateCallback && this.currentTrack) {
       this.onTimeUpdateCallback(0, this.currentTrack.duration);
     }
+  }
+
+  // Dipanggil AudioContext saat satu stem habis; cukup reaksi sekali
+  private handleSourceEnded(_key: string): void {
+    if (!this.isPlaying) return; // manual pause/stop atau tidak sedang bermain
+    this.stop();
+    if (this.onEndedCallback) this.onEndedCallback();
+  }
+
+  public onEnded(cb: () => void): void {
+    this.onEndedCallback = cb;
   }
 
   public seek(timeInSeconds: number) {
