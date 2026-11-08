@@ -165,8 +165,11 @@ def _itunes_ref(artist: str, title: str) -> tuple[float | None, str | None]:
         for row in (req.json().get("results") or []):
             name = _norm(str(row.get("trackName") or ""))
             art = _norm(str(row.get("artistName") or ""))
-            t_n, a_n = _norm(title), _norm(artist)
-            if t_n and (t_n in name or name in t_n) and (not a_n or a_n in art):
+            t_n = _norm(title)
+            # Artis bisa "A, B" / "A & B" / "A feat. B" — iTunes hanya kenal artis utama:
+            # cocokkan SATU segmen trail komenof terhadap nama artis di iTunes; tanpa segmen pun sah.
+            segs = [_norm(s) for s in re.split(r"[,/&]|feat\.?", artist or "") if s.strip()]
+            if t_n and (t_n in name or name in t_n) and (not segs or any(seg in art for seg in segs)):
                 ms = row.get("trackTimeMillis")
                 return (int(ms) / 1000.0 if ms else None), row.get("previewUrl")
     except Exception:
