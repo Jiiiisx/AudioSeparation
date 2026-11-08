@@ -316,15 +316,18 @@ def _pick_youtube_track(artist: str, title: str):
                 cid = cand.get("id")
                 s0 = _similarity_candidate(cid, ref)  # menggunakan yt-dlp parsial 35 s
                 sims.append((s0, cand))
-                print(f"[resolver] audio-match {cand.get('title')!r} → sim={s0:.3f}")
+                print(f"[resolver] audio-match {cand.get('title')!r} → sim={s0 if s0 is None else f'{s0:.3f}'}")
             sims = [(s, c) for s, c in sims if s is not None]
-            if sims:
-                best_sim, cand_best = max(sims, key=lambda x: x[0])
-                best = {k: cand_best.get(k) for k in ("id", "title", "duration", "channel", "uploader")}
-                if best_sim < 0.45:
-                    print(f"[resolver] sim tertinggi {best_sim:.3f} < 0.45 → tolak semua kandidat")
-                    return None
-                print(f"[resolver] dipilih via akustik sim={best_sim:.3f}")
+            if not sims:
+                # akustik jalan tapi tak satu pun kandidat terukur → jangan pakai tebakan kata
+                print("[resolver] tidak ada kandidat terukur → tolak (fallback kata dilarang)")
+                return None
+            best_sim, cand_best = max(sims, key=lambda x: x[0])
+            best = {k: cand_best.get(k) for k in ("id", "title", "duration", "channel", "uploader")}
+            if best_sim < 0.45:
+                print(f"[resolver] sim tertinggi {best_sim:.3f} < 0.45 → tolak semua kandidat")
+                return None
+            print(f"[resolver] dipilih via akustik sim={best_sim:.3f}")
     return best
 
 
@@ -332,28 +335,47 @@ def _similarity_candidate(video_id: str, ref: list):
     """Unduh 35 s audio pertama kandidat (format terendah, hemat), hitung similarity
     terhadap vektor preview iTunes. Return None bila infrastruktur gagal."""
     import tempfile, os, shutil, glob
+    cookie_src = pathlib.Path("/etc/secrets/cookies.txt")
     tmpdir = tempfile.mkdtemp(prefix="apc-")
     try:
         out = os.path.join(tmpdir, "cand.%(ext)s")
-        opts = {
+        cookie_file = None
+        if cookie_src.exists():
+            cookie_file = os.path.join(tmpdir, "cookies.txt")
+            shutil.copyfile(cookie_src, cookie_file)
+        base = {
             "quiet": True, "skip_download": False,
             "format": "bestaudio/best",
             "outtmpl": out,
-            "download_ranges": lambda info, ydl: [{"start_time": 0, "end_time": 35.0}],
-            "force_keyframes_at_cuts": True,
             "js_runtimes": {"node": {}},
         }
-        with yt_dlp.YoutubeDL(opts) as yd:
-            yd.download([f"https://www.youtube.com/watch?v={video_id}"])
-        files = glob.glob(os.path.join(tmpdir, "cand.*"))
-        cand_vecs = None
-        for f in files:
-            cand_vecs = _audio_embed(f)
-            if cand_vecs:
-                break
-        if cand_vecs is None:
-            return None
-        return _matched_audio(ref, cand_vecs)
+        urls = [f"https://www.youtube.com/watch?v={video_id}"]
+        # percobaan berurutan: 35 s dengan cookie → 35 s tanpa cookie → unduh penuh.
+        # (range parsial + client tertentu sering menolak format: "Requested format is not available")
+        ranged = {
+            "format": "worstaudio/worst",
+            "download_ranges": lambda info, ydl: [{"start_time": 0, "end_time": 35.0}],
+            "force_keyframes_at_cuts": True,
+        }
+        attempts = [{**base, **ranged}, {**base, **ranged}, {**base, "format": "worstaudio/worst"}]
+        for i, opts in enumerate(attempts):
+            attempt = dict(opts)
+            if i == 0 and cookie_file:
+                attempt["cookiefile"] = cookie_file
+            try:
+                with yt_dlp.YoutubeDL(attempt) as yd:
+                    yd.download(urls)
+                files = glob.glob(os.path.join(tmpdir, "cand.*"))
+                cand_vecs = None
+                for f in files:
+                    cand_vecs = _audio_embed(f)
+                    if cand_vecs:
+                        break
+                if cand_vecs:
+                    return _matched_audio(ref, cand_vecs)
+            except Exception:
+                pass
+        return None
     except Exception as e:
         print(f"[resolver] kandidat {video_id} gagal diuji: {type(e).__name__}")
         return None
