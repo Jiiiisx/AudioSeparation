@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 import requests
 import yt_dlp
+import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent
 JOBS_DIR = Path(os.environ.get("JOBS_DIR", BASE_DIR / "cache" / "jobs"))
@@ -153,10 +154,8 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", (s or "").lower())
 
 
-def _expected_duration_s(artist: str, title: str) -> float | None:
-    """Durasi eksak lagu dari iTunes Search API (gratis, tanpa API key).
-    Dipakai sebagai anchor supaya kandidat YouTube yang judulnya mirip tapi
-    lagunya beda (durasi meleset) bisa ditolak."""
+def _itunes_ref(artist: str, title: str) -> tuple[float | None, str | None]:
+    """Durasi + URL preview 30 s lagu dari iTunes Search API (gratis, tanpa API key)."""
     try:
         req = requests.get(
             "https://itunes.apple.com/search",
@@ -169,16 +168,70 @@ def _expected_duration_s(artist: str, title: str) -> float | None:
             t_n, a_n = _norm(title), _norm(artist)
             if t_n and (t_n in name or name in t_n) and (not a_n or a_n in art):
                 ms = row.get("trackTimeMillis")
-                if ms:
-                    return int(ms) / 1000.0
+                return (int(ms) / 1000.0 if ms else None), row.get("previewUrl")
     except Exception:
         pass
-    return None
+    return None, None
+
+
+def _expected_duration_s(artist: str, title: str) -> float | None:
+    """Durasi eksak lagu dari iTunes Search API (gratis, tanpa API key).
+    Dipakai sebagai anchor supaya kandidat YouTube yang judulnya mirip tapi
+    lagunya beda (durasi meleset) bisa ditolak."""
+    return _itunes_ref(artist, title)[0]
+
+
+def _audio_embed(path: str, offset: float = 0.0, dur: float = 30.0) -> list | None:
+    """Vektor akustik dari file mp3: 64 bin log-spektrum, dicahek per 5 s.
+    Pencocokan cosine per potongan toleran terhadap beda offset mulai video."""
+    try:
+        raw = subprocess.run(
+            ["ffmpeg", "-v", "quiet", "-ss", str(offset), "-t", str(dur),
+             "-i", path, "-ac", "1", "-ar", "16000", "-f", "s16le", "pipe:1"],
+            capture_output=True, timeout=40,
+        ).stdout
+        audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    except Exception:
+        return None
+    if audio.size < 16000 * 5:
+        return None
+    audio = audio - audio.mean()
+    chunks = []
+    step = 16000 * 5  # 5 detik per chunk
+    for start in range(0, min(len(audio), step * 8) - step + 1, step // 2):
+        seg = audio[start:start + step]
+        spec = np.abs(np.fft.rfft(np.hanning(len(seg)) * seg)) + 1e-9
+        logspec = np.log(spec)
+        # 64 bin log-skala; edges unik agar tidak ada slice kosong (NaN) di bin rendah
+        # Sub-bin 1 s (5x64) menangkap struktur waktu lagu, bukan hanya rata-an spektrum
+        # Sub-bin 1 s (5x64) menangkap struktur waktu lagu; indeks bin spektrum 1/5 panjang
+        sub = len(logspec) // 5
+        flat = []
+        for i in range(5):
+            si = logspec[i * sub:(i + 1) * sub]
+            edges = np.unique(np.geomspace(1, len(si), 65).astype(int))
+            bm = [si[a:b].mean() for a, b in zip(edges[:-1], edges[1:])]
+            flat.extend(bm)
+        v = np.array(flat)
+        v -= v.mean()
+        n = np.linalg.norm(v)
+        if n:
+            chunks.append((v / n))
+    return chunks or None
+
+
+def _matched_audio(a: list, b: list) -> float:
+    """Rata-rata cosine terbaik tiap chunk A terhadap semua chunk B (0..1)."""
+    am = np.stack(a)
+    bm = np.stack(b)
+    sim = am @ bm.T
+    return float(sim.max(axis=1).mean())
 
 
 def _pick_youtube_track(artist: str, title: str):
     """Pilih video YouTube yang BENAR-BENAR lagunya, bukan podcast/cover/live.
-    Gate keras: durasi 60-360 s (sesuai janji UI 1-5 menit) + skor kata judul/artis."""
+    Skor kata/kanal/durasi menyaring kandidat, lalu PEMERIKSA AKUSTIK:
+    bandingkan preview 30 s iTunes vs kandidat (cosine per 5 s)."""
     try:
         with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
             info = ydl.extract_info(f"ytsearch10:{artist} - {title}", download=False)
@@ -188,7 +241,7 @@ def _pick_youtube_track(artist: str, title: str):
     if not entries:
         return None
     t_n, a_n = _norm(title), _norm(artist)
-    anchor = _expected_duration_s(artist, title)
+    anchor, preview_url = _itunes_ref(artist, title)
     words = [w for w in t_n.split() if len(w) > 2]
     def score(c) -> float:
         t = _norm(str(c.get("title") or ""))
@@ -228,8 +281,75 @@ def _pick_youtube_track(artist: str, title: str):
         if a_n and a_n in t:
             s += 60.0
         return s
-    best = max(entries, key=score)
-    return best if score(best) > 0 else None
+    # Susu kata/kanal/durasi: kandidat layak sesudah skor
+    good = sorted([c for c in entries if score(c) > 0], key=score, reverse=True)
+    if not good:
+        return None
+    best = good[0]
+    # PEMERIKSA AKUSTIK: bandingkan preview 30 s iTunes vs audio kandidat
+    if preview_url:
+        import tempfile, os
+        ref = None
+        tmpdir = tempfile.mkdtemp(prefix="apx-")
+        try:
+            mp = os.path.join(tmpdir, "ref.mp3")
+            res = requests.get(preview_url, timeout=15)
+            if res.ok:
+                with open(mp, "wb") as f:
+                    f.write(res.content)
+                ref = _audio_embed(mp)
+        except Exception:
+            ref = None
+        finally:
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        if ref is not None:
+            # Uji maksimal 3 kandidat teratas; ambil similarity tertinggi
+            sims = []
+            for cand in good[:3]:
+                cid = cand.get("id")
+                s0 = _similarity_candidate(cid, ref)  # menggunakan yt-dlp parsial 35 s
+                sims.append((s0, cand))
+                print(f"[resolver] audio-match {cand.get('title')!r} → sim={s0:.3f}")
+            sims = [(s, c) for s, c in sims if s is not None]
+            if sims:
+                best_sim, best = max(sims, key=lambda x: x[0])
+                if best_sim < 0.45:
+                    print(f"[resolver] sim tertinggi {best_sim:.3f} < 0.45 → tolak semua kandidat")
+                    return None
+                print(f"[resolver] dipilih via akustik sim={best_sim:.3f}")
+    return best
+
+
+def _similarity_candidate(video_id: str, ref: list):
+    """Unduh 35 s audio pertama kandidat (format terendah, hemat), hitung similarity
+    terhadap vektor preview iTunes. Return None bila infrastruktur gagal."""
+    import tempfile, os, shutil, glob
+    tmpdir = tempfile.mkdtemp(prefix="apc-")
+    try:
+        out = os.path.join(tmpdir, "cand.%(ext)s")
+        opts = {
+            "quiet": True, "skip_download": False,
+            "format": "bestaudio/best",
+            "outtmpl": out,
+            "download_ranges": lambda info, ydl: [{"start_time": 0, "end_time": 35.0}],
+            "force_keyframes_at_cuts": True,
+        }
+        with yt_dlp.YoutubeDL(opts) as yd:
+            yd.download([f"https://www.youtube.com/watch?v={video_id}"])
+        files = glob.glob(os.path.join(tmpdir, "cand.*"))
+        cand_vecs = None
+        for f in files:
+            cand_vecs = _audio_embed(f)
+            if cand_vecs:
+                break
+        if cand_vecs is None:
+            return None
+        return _matched_audio(ref, cand_vecs)
+    except Exception:
+        return None
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _pipeline_core(job_id: str, source_url: str, title: str, artist: str) -> None:
