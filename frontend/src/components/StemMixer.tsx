@@ -1,6 +1,6 @@
 import React from "react";
 import type { StemKey, StemTrackConfig } from "../lib/audioEngine";
-import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconDisc, IconWaveSine, IconMicrophone2, IconGuitarPick, IconPiano, IconDeviceSpeaker } from "@tabler/icons-react";
 
 interface StemMixerProps {
   availableKeys: StemKey[];
@@ -13,13 +13,13 @@ interface StemMixerProps {
   stemEnergies: Record<StemKey, number>;
 }
 
-const STEM_META: { key: StemKey; label: string; color: string }[] = [
-  { key: "drums", label: "Drums & Percussion", color: "text-amber-400" },
-  { key: "bass", label: "Bass & Sub-Bass", color: "text-purple-400" },
-  { key: "vocals", label: "Vocal Track", color: "text-blue-400" },
-  { key: "guitar", label: "Gitar & Kayu Awal", color: "text-lime-400" },
-  { key: "piano", label: "Piano / Keys", color: "text-cyan-400" },
-  { key: "other", label: "Instruments Lain", color: "text-rose-400" },
+const STEM_META: { key: StemKey; label: string; color: string; icon: React.FC<{ className?: string }> }[] = [
+  { key: "drums", label: "Drums & Perkusi", color: "text-amber-400", icon: IconDisc },
+  { key: "bass", label: "Bass & Sub-Bass", color: "text-purple-400", icon: IconWaveSine },
+  { key: "vocals", label: "Vokal", color: "text-blue-400", icon: IconMicrophone2 },
+  { key: "guitar", label: "Gitar", color: "text-lime-400", icon: IconGuitarPick },
+  { key: "piano", label: "Piano / Keys", color: "text-cyan-400", icon: IconPiano },
+  { key: "other", label: "Instrumen Lain", color: "text-rose-400", icon: IconDeviceSpeaker },
 ];
 
 export const StemMixer: React.FC<StemMixerProps> = ({
@@ -45,7 +45,7 @@ export const StemMixer: React.FC<StemMixerProps> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        {STEM_META.map(({ key, label, color }) => {
+        {STEM_META.map(({ key, label, color, icon: Icon }) => {
           const cfg = trackConfigs.get(key);
           if (!cfg) return null;
           const available = availableKeys.includes(key);
@@ -70,8 +70,8 @@ export const StemMixer: React.FC<StemMixerProps> = ({
                     Belum Model
                   </span>
                 )}
-                <div className={`size-9 rounded-full bg-[#333] flex items-center justify-center ${color} shrink-0`}>
-                  <span className="text-xs font-bold uppercase">{key.slice(0, 2)}</span>
+                <div className={`size-9 rounded-full bg-[#242424] flex items-center justify-center ${color} shrink-0`}>
+                  <Icon className="size-[18px]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
