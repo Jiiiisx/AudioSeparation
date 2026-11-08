@@ -185,9 +185,13 @@ def _pick_youtube_track(artist: str, title: str):
             diff = abs(dur - anchor)
             s += (60.0 - min(diff, 6.0) * 10.0) if diff <= 6.0 else -800.0
         t_low = (c.get("title") or "").lower()
-        for bad in ("live", "cover", "karaoke", "nightcore", "podcast", "instrumental"):
+        for bad in ("live", "cover", "karaoke", "nightcore", "podcast", "instrumental",
+                    "sped up", "slowed", "tiktok", "reaction", "mashup", "interview",
+                    "full album", "1 hour", "10 minutes", "loop", "versi jawa", "leaked"):
             if bad in t_low:
                 s -= 500.0
+        if "sped" in t_low or "nightcore" in t_low or "pitched" in t_low:
+            s -= 300.0
         for kw in ("official audio", "topic", "official music video", "official lyric"):
             if kw in t_low:
                 s += 8.0
