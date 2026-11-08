@@ -30,8 +30,6 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   onSeek,
   onOpenMixer,
 }) => {
-  const pct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
-
   return (
     <footer
       className="md:hidden fixed inset-x-0 bottom-0 z-30 bg-[#181818] border-t border-white/5"
