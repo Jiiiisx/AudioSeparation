@@ -233,7 +233,8 @@ def _pick_youtube_track(artist: str, title: str):
     Skor kata/kanal/durasi menyaring kandidat, lalu PEMERIKSA AKUSTIK:
     bandingkan preview 30 s iTunes vs kandidat (cosine per 5 s)."""
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True,
+                                "js_runtimes": {"node": {}}}) as ydl:
             info = ydl.extract_info(f"ytsearch10:{artist} - {title}", download=False)
         entries = [e for e in ((info or {}).get("entries") or []) if e]
     except Exception:
@@ -242,6 +243,7 @@ def _pick_youtube_track(artist: str, title: str):
         return None
     t_n, a_n = _norm(title), _norm(artist)
     anchor, preview_url = _itunes_ref(artist, title)
+    print(f"[resolver] anchor={anchor} preview={'ya' if preview_url else 'TIDAK'}")
     words = [w for w in t_n.split() if len(w) > 2]
     def score(c) -> float:
         t = _norm(str(c.get("title") or ""))
@@ -300,6 +302,7 @@ def _pick_youtube_track(artist: str, title: str):
                 ref = _audio_embed(mp)
         except Exception:
             ref = None
+            print("[resolver] _audio_embed preview gagal (ref=None)")
         finally:
             import shutil
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -334,6 +337,7 @@ def _similarity_candidate(video_id: str, ref: list):
             "outtmpl": out,
             "download_ranges": lambda info, ydl: [{"start_time": 0, "end_time": 35.0}],
             "force_keyframes_at_cuts": True,
+            "js_runtimes": {"node": {}},
         }
         with yt_dlp.YoutubeDL(opts) as yd:
             yd.download([f"https://www.youtube.com/watch?v={video_id}"])
@@ -346,7 +350,8 @@ def _similarity_candidate(video_id: str, ref: list):
         if cand_vecs is None:
             return None
         return _matched_audio(ref, cand_vecs)
-    except Exception:
+    except Exception as e:
+        print(f"[resolver] kandidat {video_id} gagal diuji: {type(e).__name__}")
         return None
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
