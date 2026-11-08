@@ -127,6 +127,21 @@ async function decodeStemsToTrack(
   };
 }
 
+export interface SearchHit {
+  id: string;
+  title: string;
+  channel: string;
+  duration: number | null;
+  thumbnail: string;
+}
+
+/** Cari kandidat lagu di YouTube (backend /api/search). */
+export async function searchSongs(q: string): Promise<SearchHit[]> {
+  const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error("Pencarian gagal — coba lagi atau tempel link langsung.");
+  return res.json();
+}
+
 /**
  * Alur: link Spotify → backend antri pekerjaan (job) → polling status
  * → saat selesai, fetch stem MP3 → decode jadi PCM mono → TrackStemData.

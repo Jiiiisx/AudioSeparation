@@ -9,6 +9,7 @@ import json
 import pathlib
 import re
 import shutil
+import tempfile
 import hashlib
 import sqlite3
 import threading
@@ -283,6 +284,49 @@ def cancel_job(job_id: str):
     if not done:
         set_job(job_id, status="error", message="Dibatalkan oleh pengguna.")
     return {"ok": True}
+
+
+@app.get("/api/search")
+def search_songs(q: str):
+    """Cari lagu di YouTube: daftar kandidat utk dipilih user (thumbnail/judul/kanal/durasi)."""
+    q = (q or "").strip()
+    if not q:
+        raise HTTPException(400, "Query pencarian tidak boleh kosong.")
+    opts = {
+        "quiet": True, "skip_download": True,
+        "extract_flat": "in_playlist",
+        "js_runtimes": {"node": {}},
+    }
+    cs = pathlib.Path("/etc/secrets/cookies.txt")
+    tmp = None
+    tmpdir = tempfile.mkdtemp(prefix="ytsearch-")
+    if not cs.exists() and os.environ.get("RIEMANN_YT_COOKIES"):
+        tmp = pathlib.Path(tmpdir) / "cookies.txt"
+        tmp.write_text(os.environ["RIEMANN_YT_COOKIES"], encoding="utf-8")
+        opts["cookiefile"] = str(tmp)
+    elif cs.exists():
+        tmp = pathlib.Path(tmpdir) / "cookies.txt"
+        shutil.copyfile(cs, tmp)
+        opts["cookiefile"] = str(tmp)
+    try:
+        with yt_dlp.YoutubeDL(opts) as yd:
+            info = yd.extract_info(f"ytsearch8:{q}", download=False) or {}
+        out = []
+        for e in (info.get("entries") or []):
+            if not e or not e.get("id"):
+                continue
+            out.append({
+                "id": e.get("id"),
+                "title": e.get("title"),
+                "channel": e.get("channel") or e.get("uploader") or "",
+                "duration": e.get("duration"),
+                "thumbnail": e.get("thumbnail") or "",
+            })
+        return out
+    except Exception as e:
+        raise HTTPException(502, f"Pencarian YouTube gagal: {e}")
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @app.post("/api/process-track")

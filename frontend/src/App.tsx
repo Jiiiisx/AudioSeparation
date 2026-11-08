@@ -22,7 +22,7 @@ import {
   IconAlertTriangle,
 } from "@tabler/icons-react";
 import { Sidebar } from "./components/Sidebar";
-import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, markLocalLink, getLocalHistory, apiBase } from "./lib/songApi";
+import { fetchLibrary, deleteLibrarySong, loadLibrarySong, resolveSpotifyTrack, cancelSpotifyJob, markLocalLink, getLocalHistory, apiBase, searchSongs, type SearchHit } from "./lib/songApi";
 
 const LOCAL_HISTORY_FLAG = "riemann-history-seeded";
 import type { LibrarySong } from "./lib/songApi";
@@ -70,6 +70,9 @@ export function App() {
   const [spotifyProgress, setSpotifyProgress] = useState<number>(0);
   const [spotifyBusy, setSpotifyBusy] = useState<boolean>(false);
   const [showStopConfirm, setShowStopConfirm] = useState<boolean>(false);
+  const [ytQuery, setYtQuery] = useState<string>("");
+  const [ytHits, setYtHits] = useState<SearchHit[]>([]);
+  const [ytSearching, setYtSearching] = useState<boolean>(false);
   const [library, setLibrary] = useState<LibrarySong[]>([]);
   const [loadingLibrarySongId, setLoadingLibrarySongId] = useState<number | null>(null);
   const [showMobileNav, setShowMobileNav] = useState<boolean>(false);
@@ -460,17 +463,37 @@ export function App() {
     }
   };
 
-  const handleResolveSpotify = async () => {
-    const url = spotifyUrl.trim();
-    if (!url) return;
-    if (/open\.spotify\.com/.test(url)) {
-      setSpotifyStatus("Error: dukungan Spotify sudah dihapus — tempelkan link video YouTube.");
-      return;
+  const handleYtSearch = async () => {
+    const q = ytQuery.trim();
+    if (!q || ytSearching) return;
+    setYtSearching(true);
+    setYtHits([]);
+    try {
+      setYtHits(await searchSongs(q));
+    } catch (e) {
+      setSpotifyStatus(`Error: ${(e as Error).message}`);
+    } finally {
+      setYtSearching(false);
     }
-    if (!/(youtube\.com\/watch|youtu\.be\/)/.test(url)) {
-      setSpotifyStatus("Error: tempelkan link video YouTube (pastikan videonya audio asli lagunya).");
-      return;
-    }
+  };
+
+  const handlePickHit = (hit: SearchHit) => {
+    const url = `https://www.youtube.com/watch?v=${hit.id}`;
+    setSpotifyUrl(url);
+    void handleResolveSpotify(url);
+  };
+
+  const handleResolveSpotify = async (directUrl?: string) => {
+  const url = (directUrl ?? spotifyUrl).trim();
+  if (!url) return;
+  if (/open\.spotify\.com/.test(url)) {
+    setSpotifyStatus("Error: dukungan Spotify sudah dihapus — tempelkan link video YouTube.");
+    return;
+  }
+  if (!/(youtube\.com\/watch\?v=|youtu\.be\/)/.test(url)) {
+    setSpotifyStatus("Error: tempelkan link video YouTube (pastikan videonya audio asli lagunya).");
+    return;
+  }
     setSpotifyStatus("Diterima backend, memulai pipeline...");
     setSpotifyProgress(0);
     setSpotifyBusy(true);
@@ -685,7 +708,7 @@ export function App() {
                   className="sm:col-span-3 inline-flex items-center justify-center gap-2 w-full sm:w-fit px-6 py-3 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-[1.03] active:scale-95 transition cursor-pointer"
                 >
                   <IconBrandYoutube className="size-5" />
-                  Mulai dari link YouTube
+                  Cari lagu di YouTube
                 </button>
               </div>
 
@@ -796,11 +819,49 @@ export function App() {
       {/* Modal: Tautkan Spotify */}
       {showSpotifyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="w-[440px] max-w-[90vw] rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-white">Tautkan lagu</h3>
+          <div className="w-[440px] max-w-[90vw] max-h-[88vh] overflow-y-auto rounded-lg bg-[#181818] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white">Cari lagu</h3>
             <p className="text-sm text-[#a7a7a7] mt-1 leading-relaxed">
-                    Tempel link video YouTube (pastikan videonya audio asli lagunya). Server memisahkan 6 stem; durasi proses 1–5 menit.
-                  </p>
+              Ketik judul + artis lagu, pilih video yang audio-nya memang lagu aslinya. Server memisahkan 6 stem; durasi proses 1–5 menit.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <input
+                type="text"
+                value={ytQuery}
+                onChange={(e) => setYtQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleYtSearch(); }}
+                placeholder="contoh: Jay Sean Down"
+                className="flex-1 rounded-md bg-[#282828] border border-white/10 px-3 py-2.5 text-sm text-white placeholder:text-[#535353] focus:outline-none focus:border-[#1ed760]"
+              />
+              <button
+                onClick={() => void handleYtSearch()}
+                disabled={!ytQuery.trim() || ytSearching}
+                className="px-4 rounded-md bg-white/10 text-white text-sm font-bold hover:bg-white/20 disabled:opacity-40 cursor-pointer"
+              >{ytSearching ? "..." : "Cari"}</button>
+            </div>
+            {ytHits.length > 0 && (
+              <div className="mt-4 space-y-1">
+                <p className="text-[11px] uppercase tracking-wide text-[#535353]">Pilih video yang benar</p>
+                {ytHits.map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={() => handlePickHit(h)}
+                    className="w-full flex items-center gap-3 rounded-md hover:bg-white/5 p-2 text-left cursor-pointer"
+                  >
+                    {h.thumbnail
+                      ? <img src={h.thumbnail} alt="" className="size-16 rounded object-cover flex-none" />
+                      : <div className="size-16 rounded bg-[#282828] flex-none" />}
+                    <div className="min-w-0">
+                      <p className="text-sm text-white truncate">{h.title}</p>
+                      <p className="text-xs text-[#a7a7a7] truncate">
+                        {h.channel}{h.duration ? ` · ${Math.floor(h.duration / 60)}:${String(h.duration % 60).padStart(2, "0")}` : ""}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="mt-4 text-xs text-[#535353]">Atau tempel link video YouTube langsung:</p>
             <input
               type="text"
               value={spotifyUrl}
@@ -834,7 +895,7 @@ export function App() {
                 {spotifyBusy ? "Tutup & Hentikan" : "Tutup"}
               </button>
               <button
-                onClick={handleResolveSpotify}
+                onClick={() => handleResolveSpotify()}
                 disabled={!spotifyUrl.trim() || spotifyBusy || spotifyStatus.startsWith("Error")}
                 className="px-5 py-2 rounded-full bg-[#1ed760] text-black text-sm font-bold hover:scale-105 transition cursor-pointer disabled:opacity-40 disabled:hover:scale-100"
               >

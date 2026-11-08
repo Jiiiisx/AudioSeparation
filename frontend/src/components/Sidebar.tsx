@@ -111,9 +111,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-white truncate">
-                {hasSpotifyJob ? "Memproses lagu..." : "Tautkan YouTube"}
+                {hasSpotifyJob ? "Memproses lagu..." : "Cari lagu"}
               </div>
-              <div className="text-xs text-[#a7a7a7] truncate">Tempel link YouTube</div>
+              <div className="text-xs text-[#a7a7a7] truncate">Cari dari YouTube</div>
             </div>
             <IconLink className="size-4 text-[#a7a7a7]" />
           </button>
